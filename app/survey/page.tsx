@@ -78,14 +78,20 @@ function TextareaInput({
 function RadioInput({
   question,
   value,
+  otherValue,
   onChange,
+  onOtherChange,
 }: {
   question: Question
   value: AnswerValue
+  otherValue: string
   onChange: (v: string) => void
+  onOtherChange: (v: string) => void
 }) {
   const options = (question.options as string[]) ?? []
   const strVal = typeof value === 'string' ? value : ''
+  const hasOther = options.includes('기타')
+
   return (
     <div className="flex flex-col gap-2">
       {options.map(opt => (
@@ -109,6 +115,16 @@ function RadioInput({
           {opt}
         </button>
       ))}
+      {hasOther && strVal === '기타' && (
+        <input
+          type="text"
+          placeholder="직접 입력해 주세요"
+          value={otherValue}
+          onChange={e => onOtherChange(e.target.value)}
+          autoFocus
+          className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50"
+        />
+      )}
     </div>
   )
 }
@@ -116,15 +132,20 @@ function RadioInput({
 function CheckboxInput({
   question,
   value,
+  otherValue,
   onChange,
+  onOtherChange,
 }: {
   question: Question
   value: AnswerValue
+  otherValue: string
   onChange: (v: string[]) => void
+  onOtherChange: (v: string) => void
 }) {
   const options = (question.options as string[]) ?? []
   const max = question.config.max
   const arrVal = Array.isArray(value) ? (value as string[]) : []
+  const hasOther = options.includes('기타')
 
   const toggle = (opt: string) => {
     if (arrVal.includes(opt)) {
@@ -161,6 +182,16 @@ function CheckboxInput({
           {opt}
         </button>
       ))}
+      {hasOther && arrVal.includes('기타') && (
+        <input
+          type="text"
+          placeholder="직접 입력해 주세요"
+          value={otherValue}
+          onChange={e => onOtherChange(e.target.value)}
+          autoFocus
+          className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50"
+        />
+      )}
     </div>
   )
 }
@@ -477,7 +508,9 @@ export default function SurveyPage() {
         <RadioInput
           question={q}
           value={val}
+          otherValue={(answers[q.id + '__other'] as string) ?? ''}
           onChange={v => setAnswer(q.id, v)}
+          onOtherChange={v => setAnswer(q.id + '__other', v)}
         />
       )
     } else if (q.question_type === 'checkbox') {
@@ -485,7 +518,9 @@ export default function SurveyPage() {
         <CheckboxInput
           question={q}
           value={val}
+          otherValue={(answers[q.id + '__other'] as string) ?? ''}
           onChange={v => setAnswer(q.id, v)}
+          onOtherChange={v => setAnswer(q.id + '__other', v)}
         />
       )
     } else if (q.question_type === 'matrix') {

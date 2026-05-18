@@ -112,11 +112,22 @@ function ResponseModal({
       const label = q.config.labels?.[n - 1] ?? ''
       return `${n}점${label ? ' — ' + label : ''}`
     }
-    if (q.question_type === 'radio') return (val as string) || '-'
+    if (q.question_type === 'radio') {
+      const selected = (val as string) || '-'
+      if (selected === '기타') {
+        const otherText = r.answers[q.id + '__other'] as string | undefined
+        return otherText ? `기타: ${otherText}` : '기타'
+      }
+      return selected
+    }
     if (q.question_type === 'text' || q.question_type === 'textarea')
       return (val as string) || '-'
     if (q.question_type === 'checkbox') {
-      return Array.isArray(val) ? (val as string[]).join(', ') || '-' : '-'
+      if (!Array.isArray(val)) return '-'
+      const selected = val as string[]
+      const otherText = r.answers[q.id + '__other'] as string | undefined
+      const display = selected.map(s => (s === '기타' && otherText) ? `기타: ${otherText}` : s)
+      return display.join(', ') || '-'
     }
     if (q.question_type === 'matrix') {
       const items = q.options as MatrixItem[]
@@ -693,11 +704,27 @@ function StatsTab({
         if (q.question_type === 'radio') {
           const options = q.options as string[]
           const counts = countOptions(responses, q.id, options)
+          const otherTexts = options.includes('기타')
+            ? responses
+                .filter(r => r.answers[q.id] === '기타')
+                .map(r => r.answers[q.id + '__other'] as string)
+                .filter(Boolean)
+            : []
           return (
             <Card key={q.id} title={qLabel}>
               {options.map(opt => (
                 <CountBar key={opt} label={opt} count={counts[opt] ?? 0} total={n} />
               ))}
+              {otherTexts.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-xs font-semibold text-gray-500 mb-2">기타 응답 내용</div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {otherTexts.map((t, i) => (
+                      <div key={i} className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">{t}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           )
         }
@@ -705,11 +732,27 @@ function StatsTab({
         if (q.question_type === 'checkbox') {
           const options = q.options as string[]
           const counts = countOptions(responses, q.id, options)
+          const otherTexts = options.includes('기타')
+            ? responses
+                .filter(r => Array.isArray(r.answers[q.id]) && (r.answers[q.id] as string[]).includes('기타'))
+                .map(r => r.answers[q.id + '__other'] as string)
+                .filter(Boolean)
+            : []
           return (
             <Card key={q.id} title={qLabel}>
               {options.map(opt => (
                 <CountBar key={opt} label={opt} count={counts[opt] ?? 0} total={n} />
               ))}
+              {otherTexts.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-xs font-semibold text-gray-500 mb-2">기타 응답 내용</div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {otherTexts.map((t, i) => (
+                      <div key={i} className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-1.5">{t}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           )
         }
