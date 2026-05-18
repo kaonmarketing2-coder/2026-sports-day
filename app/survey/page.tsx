@@ -288,7 +288,7 @@ function ConditionalInput({
   question: Question; value: AnswerValue; onChange: (v: ConditionalAnswer) => void
 }) {
   const cfg = question.config
-  const isLegacy = !cfg.option_branches
+  const isLegacy = !cfg.option_branches || Object.keys(cfg.option_branches).length === 0
 
   const condVal: ConditionalAnswer =
     value && typeof value === 'object' && !Array.isArray(value) && ('used' in (value as object) || 'selected' in (value as object))
