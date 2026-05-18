@@ -288,15 +288,18 @@ function ConditionalInput({
   question: Question; value: AnswerValue; onChange: (v: ConditionalAnswer) => void
 }) {
   const cfg = question.config
-  const isLegacy = !cfg.option_branches || Object.keys(cfg.option_branches).length === 0
+  const hasOptionBranches = cfg.option_branches && Object.keys(cfg.option_branches).length > 0
 
-  const condVal: ConditionalAnswer =
-    value && typeof value === 'object' && !Array.isArray(value) && ('used' in (value as object) || 'selected' in (value as object))
-      ? (value as ConditionalAnswer)
-      : isLegacy ? { used: null, satisfaction: null, zones: [] } : { selected: null }
+  const getCondVal = (): ConditionalAnswer => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as ConditionalAnswer
+    }
+    return hasOptionBranches ? { selected: null } : { used: null, satisfaction: null, zones: [] }
+  }
 
-  // ── Legacy format (satisfaction_labels / zones) ───────────────────────────
-  if (isLegacy) {
+  const condVal = getCondVal()
+
+  if (!hasOptionBranches) {
     const triggerOptions = cfg.trigger_options ?? ['이용 안 함', '이용함']
     const satisfactionLabels = cfg.satisfaction_labels ?? ['불만족', '보통', '만족']
     const zones = cfg.zones ?? []
@@ -351,7 +354,6 @@ function ConditionalInput({
   const multiSelect = cfg.multi_select ?? false
   const allOpts = [...mainOpts, ...(cfg.has_other ? ['기타'] : [])]
   const optionBranches = cfg.option_branches ?? {}
-
   const selected = condVal.selected ?? (multiSelect ? [] : null)
   const selectedArr: string[] = multiSelect
     ? Array.isArray(selected) ? (selected as string[]) : []
@@ -360,36 +362,38 @@ function ConditionalInput({
   const handleMainSelect = (opt: string) => {
     if (multiSelect) {
       const arr = selectedArr
-      const isSelected = arr.includes(opt)
-      const next = isSelected ? arr.filter(x => x !== opt) : [...arr, opt]
-      const newBranchAnswers = { ...(condVal.branch_answers ?? {}) }
-      if (isSelected) delete newBranchAnswers[opt]
-      onChange({ ...condVal, selected: next, branch_answers: newBranchAnswers })
+      const isSel = arr.includes(opt)
+      const next = isSel ? arr.filter(x => x !== opt) : [...arr, opt]
+      const newBranch = { ...(condVal.branch_answers ?? {}) }
+      if (isSel) delete newBranch[opt]
+      onChange({ selected: next, branch_answers: newBranch })
     } else {
       const newOpt = selected === opt ? null : opt
-      onChange({ ...condVal, selected: newOpt, other_text: undefined, branch_answers: {} })
+      onChange({ selected: newOpt, branch_answers: {} })
     }
   }
 
   const updateBranchAnswer = (opt: string, qid: string, val: AnswerValue) => {
-    const optAns = condVal.branch_answers?.[opt] ?? {}
+    const prev = condVal.branch_answers ?? {}
+    const prevOpt = prev[opt] ?? {}
     onChange({
-      ...condVal,
-      branch_answers: { ...(condVal.branch_answers ?? {}), [opt]: { ...optAns, [qid]: val } },
+      selected: condVal.selected,
+      branch_answers: { ...prev, [opt]: { ...prevOpt, [qid]: val } },
     })
   }
 
   const updateBranchOther = (opt: string, qid: string, text: string) => {
-    const optAns = condVal.branch_answers?.[opt] ?? {}
+    const prev = condVal.branch_answers ?? {}
+    const prevOpt = prev[opt] ?? {}
     onChange({
-      ...condVal,
-      branch_answers: { ...(condVal.branch_answers ?? {}), [opt]: { ...optAns, [qid + '__other']: text } },
+      selected: condVal.selected,
+      branch_answers: { ...prev, [opt]: { ...prevOpt, [qid + '__other']: text } },
     })
   }
 
   const renderBranchQ = (bq: BranchQuestion, opt: string) => {
     const branchAnswers = condVal.branch_answers?.[opt] ?? {}
-    const val = condVal.branch_answers?.[opt]?.[bq.id] ?? null
+    const val = branchAnswers[bq.id] ?? null
 
     if (bq.type === 'text') return (
       <input type="text" placeholder="직접 입력해 주세요"
@@ -418,7 +422,6 @@ function ConditionalInput({
         </div>
       )
     }
-    // radio or checkbox
     const isCheck = bq.type === 'checkbox'
     const bqOpts = [...(bq.options ?? []), ...(bq.has_other ? ['기타'] : [])]
     const bqSel = val ?? (isCheck ? [] : null)
@@ -456,24 +459,19 @@ function ConditionalInput({
 
   return (
     <div>
-      {/* Main options */}
       <div className="flex flex-col gap-2">
         {allOpts.map(opt => {
           const isSel = multiSelect ? selectedArr.includes(opt) : selected === opt
           return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={multiSelect} onClick={() => handleMainSelect(opt)} />
         })}
       </div>
-
-      {/* 기타 text */}
       {cfg.has_other && selectedArr.includes('기타') && (
         <input type="text" placeholder="직접 입력해 주세요" autoFocus
           value={condVal.other_text ?? ''}
-          onChange={e => onChange({ ...condVal, other_text: e.target.value })}
+          onChange={e => onChange({ selected: condVal.selected, other_text: e.target.value, branch_answers: condVal.branch_answers })}
           className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50 mt-2"
         />
       )}
-
-      {/* Branch questions for each selected option */}
       {selectedArr.map(opt => {
         const bqs = optionBranches[opt] ?? []
         if (bqs.length === 0) return null
@@ -491,7 +489,6 @@ function ConditionalInput({
     </div>
   )
 }
-
 function PhotoInput({
   question,
   value,
