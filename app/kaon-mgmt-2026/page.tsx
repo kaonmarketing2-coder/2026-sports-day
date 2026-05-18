@@ -1021,15 +1021,8 @@ function StatsTab({
 
 // ── Question management tab ───────────────────────────────────────────────────
 
-function QuestionsTab({
-  questions,
-  storedPwd,
-  onRefresh,
-}: {
-  questions: Question[]
-  storedPwd: string
-  onRefresh: () => void
-}) {
+function QuestionsTab({ storedPwd }: { storedPwd: string }) {
+  const [questions, setQuestions] = useState<Question[]>([])
   const [editTarget, setEditTarget] = useState<{ q: Question | null; isNew: boolean } | null>(null)
   const [actionError, setActionError] = useState('')
 
@@ -1038,11 +1031,25 @@ function QuestionsTab({
     'x-admin-password': storedPwd,
   }
 
+  useEffect(() => {
+    fetch('/api/questions', { headers: { 'x-admin-password': storedPwd } })
+      .then(r => r.json())
+      .then(json => setQuestions(json.data ?? []))
+  }, [storedPwd])
+
   const reorder = async (q: Question, dir: 'up' | 'down') => {
     const idx = questions.findIndex(x => x.id === q.id)
     const swapIdx = dir === 'up' ? idx - 1 : idx + 1
     if (swapIdx < 0 || swapIdx >= questions.length) return
     const swap = questions[swapIdx]
+
+    // Optimistic update
+    setQuestions(prev => {
+      const next = [...prev]
+      next[idx] = { ...q, sort_order: swap.sort_order }
+      next[swapIdx] = { ...swap, sort_order: q.sort_order }
+      return next.sort((a, b) => a.sort_order - b.sort_order)
+    })
 
     await Promise.all([
       fetch(`/api/questions/${q.id}`, {
@@ -1056,16 +1063,17 @@ function QuestionsTab({
         body: JSON.stringify({ sort_order: q.sort_order }),
       }),
     ])
-    onRefresh()
   }
 
   const toggleActive = async (q: Question) => {
+    // Optimistic update
+    setQuestions(prev => prev.map(x => x.id === q.id ? { ...x, is_active: !x.is_active } : x))
+
     await fetch(`/api/questions/${q.id}`, {
       method: 'PUT',
       headers: authHeaders,
       body: JSON.stringify({ is_active: !q.is_active }),
     })
-    onRefresh()
   }
 
   const deleteQuestion = async (q: Question) => {
@@ -1078,7 +1086,8 @@ function QuestionsTab({
       setActionError('삭제 실패')
       return
     }
-    onRefresh()
+    // Optimistic update
+    setQuestions(prev => prev.filter(x => x.id !== q.id))
   }
 
   const saveQuestion = async (draft: QuestionDraft, id?: string) => {
@@ -1093,8 +1102,15 @@ function QuestionsTab({
       const json = await res.json().catch(() => ({}))
       throw new Error(json.error ?? '저장 실패')
     }
+    const json = await res.json()
+    const saved: Question = json.data
     setEditTarget(null)
-    onRefresh()
+    // Update local state with saved question
+    if (id) {
+      setQuestions(prev => prev.map(x => x.id === id ? saved : x))
+    } else {
+      setQuestions(prev => [...prev, saved].sort((a, b) => a.sort_order - b.sort_order))
+    }
   }
 
   return (
@@ -1237,12 +1253,6 @@ export default function AdminPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
-
-  const fetchQuestions = useCallback(async (pwd: string) => {
-    const res = await fetch('/api/questions', { headers: { 'x-admin-password': pwd } })
-    const json = await res.json()
-    setQuestions(json.data ?? [])
   }, [])
 
   const handleLogin = async () => {
@@ -1457,11 +1467,7 @@ export default function AdminPage() {
             </div>
           </div>
         ) : (
-          <QuestionsTab
-            questions={questions}
-            storedPwd={storedPwd}
-            onRefresh={() => fetchQuestions(storedPwd)}
-          />
+          <QuestionsTab storedPwd={storedPwd} />
         )}
       </div>
     </div>
