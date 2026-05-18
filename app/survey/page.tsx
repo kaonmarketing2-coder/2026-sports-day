@@ -388,7 +388,7 @@ function ConditionalInput({
   }
 
   const renderBranchQ = (bq: BranchQuestion, opt: string) => {
-    const answers = condVal.branch_answers?.[opt] ?? {}
+    const branchAnswers = condVal.branch_answers?.[opt] ?? {}
     const val = condVal.branch_answers?.[opt]?.[bq.id] ?? null
 
     if (bq.type === 'text') return (
@@ -422,7 +422,7 @@ function ConditionalInput({
     const isCheck = bq.type === 'checkbox'
     const bqOpts = [...(bq.options ?? []), ...(bq.has_other ? ['기타'] : [])]
     const bqSel = val ?? (isCheck ? [] : null)
-    const otherText = (answers[bq.id + '__other'] as string) ?? ''
+    const otherText = (branchAnswers[bq.id + '__other'] as string) ?? ''
 
     const handleBqSelect = (o: string) => {
       if (isCheck) {
