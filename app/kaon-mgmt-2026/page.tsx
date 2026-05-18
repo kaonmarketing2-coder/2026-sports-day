@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType, ConditionalSubConfig, ConditionalNestedConfig } from '@/lib/types'
+import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType, BranchQuestion } from '@/lib/types'
 
 // ── Excel export ──────────────────────────────────────────────────────────────
 
@@ -37,18 +37,25 @@ function flattenAnswer(q: Question, r: SurveyResponseRow): string {
     }
     const sel = cv.selected
     if (sel === null || sel === undefined) return ''
-    const selStr = Array.isArray(sel) ? sel.join(', ') : String(sel)
+    const selArr = Array.isArray(sel) ? (sel as string[]) : [sel as string]
+    const selStr = selArr.join(', ')
     const parts = [selStr]
     if (cv.other_text) parts.push(`기타: ${cv.other_text}`)
+    const optBranches = q.config.option_branches ?? {}
+    for (const opt of selArr) {
+      const bqs = optBranches[opt] ?? []
+      const optAns = cv.branch_answers?.[opt] ?? {}
+      for (const bq of bqs) {
+        const a = optAns[bq.id]
+        if (a === null || a === undefined) continue
+        const aStr = Array.isArray(a) ? (a as string[]).join('/') : String(a)
+        const otherTxt = optAns[bq.id + '__other'] as string | undefined
+        parts.push(`[${bq.text.slice(0, 15)}] ${otherTxt ? `${aStr}(기타:${otherTxt})` : aStr}`)
+      }
+    }
     if (cv.sub_answer !== null && cv.sub_answer !== undefined) {
       const s = Array.isArray(cv.sub_answer) ? (cv.sub_answer as string[]).join(', ') : String(cv.sub_answer)
       parts.push(`↳ ${s}`)
-      if (cv.sub_other_text) parts.push(`기타: ${cv.sub_other_text}`)
-    }
-    if (cv.nested_answer !== null && cv.nested_answer !== undefined) {
-      const n = Array.isArray(cv.nested_answer) ? (cv.nested_answer as string[]).join(', ') : String(cv.nested_answer)
-      parts.push(`  ↳ ${n}`)
-      if (cv.nested_other_text) parts.push(`기타: ${cv.nested_other_text}`)
     }
     return parts.join(' / ')
   }
@@ -257,20 +264,26 @@ function ResponseModal({
       }
       const sel = cv.selected
       if (sel === null || sel === undefined) return '-'
-      const selStr = Array.isArray(sel) ? sel.join(', ') : String(sel)
-      const parts = [selStr]
+      const selArr = Array.isArray(sel) ? (sel as string[]) : [sel as string]
+      const parts = [selArr.join(', ')]
       if (cv.other_text) parts.push(`기타: ${cv.other_text}`)
+      const optBranches = q.config.option_branches ?? {}
+      for (const opt of selArr) {
+        const bqs = optBranches[opt] ?? []
+        const optAns = cv.branch_answers?.[opt] ?? {}
+        for (const bq of bqs) {
+          const a = optAns[bq.id]
+          if (a === null || a === undefined) continue
+          const aStr = Array.isArray(a) ? (a as string[]).join(', ') : String(a)
+          const otherTxt = optAns[bq.id + '__other'] as string | undefined
+          parts.push(`  • ${bq.text}: ${otherTxt ? `${aStr} (기타: ${otherTxt})` : aStr}`)
+        }
+      }
       if (cv.sub_answer !== null && cv.sub_answer !== undefined) {
         const s = Array.isArray(cv.sub_answer) ? (cv.sub_answer as string[]).join(', ') : String(cv.sub_answer)
         parts.push(`↳ ${s}`)
-        if (cv.sub_other_text) parts.push(`기타: ${cv.sub_other_text}`)
       }
-      if (cv.nested_answer !== null && cv.nested_answer !== undefined) {
-        const n = Array.isArray(cv.nested_answer) ? (cv.nested_answer as string[]).join(', ') : String(cv.nested_answer)
-        parts.push(`  ↳ ${n}`)
-        if (cv.nested_other_text) parts.push(`기타: ${cv.nested_other_text}`)
-      }
-      return parts.join(' / ')
+      return parts.join('\n')
     }
     if (q.question_type === 'photo') {
       const urls = Array.isArray(val) ? (val as string[]) : []
@@ -363,8 +376,8 @@ type QuestionDraft = {
     zones?: string[]
     multi_select?: boolean
     has_other?: boolean
+    option_branches?: Record<string, BranchQuestion[]>
     trigger_values?: string[]
-    sub?: ConditionalSubConfig
   }
   is_active: boolean
 }
@@ -389,6 +402,79 @@ function draftFromQuestion(q: Question): QuestionDraft {
     config: JSON.parse(JSON.stringify(q.config)),
     is_active: q.is_active,
   }
+}
+
+function BranchQEditor({
+  bq,
+  onChange,
+  onRemove,
+}: {
+  bq: BranchQuestion
+  onChange: (patch: Partial<BranchQuestion>) => void
+  onRemove: () => void
+}) {
+  const opts = bq.options ?? []
+  return (
+    <div className="bg-white border-2 border-gray-100 rounded-xl p-3 mb-2 space-y-2">
+      <div className="flex items-start gap-2">
+        <textarea
+          value={bq.text}
+          onChange={e => onChange({ text: e.target.value })}
+          rows={2}
+          placeholder="질문 내용"
+          className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none"
+        />
+        <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 text-sm px-1 mt-1 flex-shrink-0">✕</button>
+      </div>
+      <select
+        value={bq.type}
+        onChange={e => {
+          const t = e.target.value as BranchQuestion['type']
+          onChange({ type: t, options: [], has_other: false, scale_size: t === 'scale' ? 5 : undefined })
+        }}
+        className="w-full border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+      >
+        <option value="text">단답형</option>
+        <option value="textarea">장문형</option>
+        <option value="radio">단일 선택</option>
+        <option value="checkbox">복수 선택</option>
+        <option value="scale">척도</option>
+      </select>
+      {(bq.type === 'radio' || bq.type === 'checkbox') && (
+        <div className="space-y-1 pl-1">
+          {opts.map((opt, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={opt}
+                onChange={e => { const a = [...opts]; a[i] = e.target.value; onChange({ options: a }) }}
+                className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button type="button" onClick={() => onChange({ options: opts.filter((_, j) => j !== i) })}
+                className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => onChange({ options: [...opts, ''] })}
+            className="text-blue-600 text-xs font-semibold hover:underline">+ 선택지 추가</button>
+          <div className="flex items-center gap-2 mt-1">
+            <label className="text-xs font-semibold text-gray-600">기타 포함</label>
+            <button type="button" onClick={() => onChange({ has_other: !bq.has_other })}
+              className={`w-8 h-5 rounded-full transition-colors relative ${bq.has_other ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${bq.has_other ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        </div>
+      )}
+      {bq.type === 'scale' && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-600">척도 크기</label>
+          <input type="number" min={2} max={10} value={bq.scale_size ?? 5}
+            onChange={e => onChange({ scale_size: Number(e.target.value) })}
+            className="w-20 border-2 border-gray-200 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+      )}
+    </div>
+  )
 }
 
 function QuestionEditModal({
@@ -421,7 +507,7 @@ function QuestionEditModal({
         trigger_options: [],
         multi_select: false,
         has_other: false,
-        trigger_values: [],
+        option_branches: {},
       }
     else if (t === 'photo') defaults.config = { max_files: 5, max_mb: 10 }
     else defaults.config = {}
@@ -681,41 +767,97 @@ function QuestionEditModal({
           {/* conditional */}
           {draft.question_type === 'conditional' && (() => {
             const mainOpts = draft.config.trigger_options ?? []
-            const triggerVals = draft.config.trigger_values ?? []
-            const subCfg = draft.config.sub
-            const allMainOpts = [...mainOpts, ...(draft.config.has_other ? ['기타'] : [])]
+            const branches = draft.config.option_branches ?? {}
+            const isMulti = draft.config.multi_select ?? false
 
-            const updateSub = (patch: Partial<ConditionalSubConfig>) =>
-              setConfig('sub', { ...(subCfg ?? { text: '', type: 'text' as const }), ...patch })
+            const setBranches = (b: Record<string, BranchQuestion[]>) =>
+              setConfig('option_branches', b)
 
-            const updateNested = (patch: Partial<ConditionalNestedConfig>) =>
-              updateSub({ nested: { ...(subCfg?.nested ?? { text: '', type: 'text' as const }), ...patch } })
+            const addBranchQ = (opt: string) => {
+              const existing = branches[opt] ?? []
+              setBranches({
+                ...branches,
+                [opt]: [...existing, { id: `bq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, text: '', type: 'text' as const }],
+              })
+            }
+
+            const updateBranchQ = (opt: string, idx: number, patch: Partial<BranchQuestion>) => {
+              const qs = [...(branches[opt] ?? [])]
+              qs[idx] = { ...qs[idx], ...patch }
+              setBranches({ ...branches, [opt]: qs })
+            }
+
+            const removeBranchQ = (opt: string, idx: number) => {
+              const qs = (branches[opt] ?? []).filter((_, j) => j !== idx)
+              const next = { ...branches }
+              if (qs.length === 0) delete next[opt]
+              else next[opt] = qs
+              setBranches(next)
+            }
+
+            const renderBranchSection = (opt: string, displayLabel?: string) => {
+              if (!opt.trim()) return null
+              const bqs = branches[opt] ?? []
+              return (
+                <div className="mt-1 mb-3 ml-3 border-l-2 border-blue-200 pl-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-blue-600 font-semibold">
+                      &ldquo;{displayLabel ?? opt}&rdquo; 선택 시 추가 질문
+                    </span>
+                    <button type="button" onClick={() => addBranchQ(opt)}
+                      className="text-xs text-blue-600 font-bold hover:underline px-1">
+                      + 질문 추가
+                    </button>
+                  </div>
+                  {bqs.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic py-1">추가 질문 없음</p>
+                  ) : (
+                    bqs.map((bq, bi) => (
+                      <BranchQEditor key={bq.id} bq={bq}
+                        onChange={patch => updateBranchQ(opt, bi, patch)}
+                        onRemove={() => removeBranchQ(opt, bi)}
+                      />
+                    ))
+                  )}
+                </div>
+              )
+            }
 
             return (
               <div className="space-y-4">
-                {/* ① 메인 선택지 */}
+                {/* ① 선택지 + 선택지별 하위 질문 */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">선택지</label>
                   {mainOpts.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2 mb-1">
-                      <input
-                        value={opt}
-                        onChange={e => {
-                          const arr = [...mainOpts]; arr[i] = e.target.value
-                          const tv = triggerVals.filter(v => arr.includes(v))
-                          setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, trigger_values: tv } }))
-                        }}
-                        placeholder={`선택지 ${i + 1}`}
-                        className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                      />
-                      <button type="button"
-                        onClick={() => {
-                          const arr = mainOpts.filter((_, j) => j !== i)
-                          const tv = triggerVals.filter(v => arr.includes(v))
-                          setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, trigger_values: tv } }))
-                        }}
-                        className="text-red-400 hover:text-red-600 text-sm px-2"
-                      >✕</button>
+                    <div key={i}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <input
+                          value={opt}
+                          onChange={e => {
+                            const arr = [...mainOpts]
+                            const oldVal = arr[i]
+                            arr[i] = e.target.value
+                            const newBranches = { ...branches }
+                            if (oldVal && newBranches[oldVal] !== undefined) {
+                              newBranches[e.target.value] = newBranches[oldVal]
+                              delete newBranches[oldVal]
+                            }
+                            setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, option_branches: newBranches } }))
+                          }}
+                          placeholder={`선택지 ${i + 1}`}
+                          className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                        />
+                        <button type="button"
+                          onClick={() => {
+                            const arr = mainOpts.filter((_, j) => j !== i)
+                            const newBranches = { ...branches }
+                            delete newBranches[mainOpts[i]]
+                            setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, option_branches: newBranches } }))
+                          }}
+                          className="text-red-400 hover:text-red-600 text-sm px-2"
+                        >✕</button>
+                      </div>
+                      {renderBranchSection(opt)}
                     </div>
                   ))}
                   <button type="button"
@@ -730,14 +872,19 @@ function QuestionEditModal({
                   <button type="button"
                     onClick={() => {
                       const next = !draft.config.has_other
-                      const tv = next ? triggerVals : triggerVals.filter(v => v !== '기타')
-                      setDraft(p => ({ ...p, config: { ...p.config, has_other: next, trigger_values: tv } }))
+                      if (!next) {
+                        const nb = { ...branches }; delete nb['기타']
+                        setDraft(p => ({ ...p, config: { ...p.config, has_other: false, option_branches: nb } }))
+                      } else {
+                        setConfig('has_other', true)
+                      }
                     }}
                     className={`w-10 h-6 rounded-full transition-colors relative ${draft.config.has_other ? 'bg-blue-600' : 'bg-gray-200'}`}
                   >
                     <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${draft.config.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
                   </button>
                 </div>
+                {draft.config.has_other && renderBranchSection('기타', '기타 (직접 입력)')}
 
                 {/* ③ 단일/복수 선택 */}
                 <div className="flex items-center gap-3">
@@ -747,239 +894,12 @@ function QuestionEditModal({
                       <button key={String(val)} type="button"
                         onClick={() => setConfig('multi_select', val)}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 transition-all ${
-                          (draft.config.multi_select ?? false) === val
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                          isMulti === val ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 text-gray-600 hover:border-blue-300'
                         }`}
                       >{label}</button>
                     ))}
                   </div>
                 </div>
-
-                {/* ④ 하위 질문 트리거 선택 */}
-                {allMainOpts.filter(o => o.trim()).length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    <label className="block text-xs font-semibold text-amber-700 mb-2">
-                      하위 질문 표시 트리거 (체크한 선택지를 골랐을 때 하위 질문 표시)
-                    </label>
-                    <div className="space-y-1.5">
-                      {allMainOpts.filter(o => o.trim()).map(opt => {
-                        const checked = triggerVals.includes(opt)
-                        return (
-                          <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={checked}
-                              onChange={() => {
-                                const next = checked ? triggerVals.filter(v => v !== opt) : [...triggerVals, opt]
-                                setConfig('trigger_values', next)
-                              }}
-                              className="rounded accent-amber-600"
-                            />
-                            <span className="text-xs text-gray-700">{opt}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ⑤ 하위 질문 편집기 */}
-                {triggerVals.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                    <div className="text-xs font-bold text-blue-700">↳ 하위 질문</div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">질문 내용</label>
-                      <textarea rows={2}
-                        value={subCfg?.text ?? ''}
-                        onChange={e => updateSub({ text: e.target.value })}
-                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">질문 유형</label>
-                      <select value={subCfg?.type ?? 'text'}
-                        onChange={e => {
-                          const t = e.target.value as ConditionalSubConfig['type']
-                          updateSub({ type: t, options: [], has_other: false, scale_size: t === 'scale' ? 5 : undefined, trigger_values: [], nested: undefined })
-                        }}
-                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                      >
-                        <option value="text">단답형</option>
-                        <option value="textarea">장문형</option>
-                        <option value="radio">단일 선택</option>
-                        <option value="checkbox">복수 선택</option>
-                        <option value="scale">척도</option>
-                      </select>
-                    </div>
-
-                    {/* 하위 선택지 */}
-                    {(subCfg?.type === 'radio' || subCfg?.type === 'checkbox') && (
-                      <>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">하위 선택지</label>
-                          {(subCfg.options ?? []).map((opt, i) => (
-                            <div key={i} className="flex items-center gap-2 mb-1">
-                              <input value={opt}
-                                onChange={e => {
-                                  const opts = [...(subCfg.options ?? [])]; opts[i] = e.target.value
-                                  const stv = (subCfg.trigger_values ?? []).filter(v => opts.includes(v))
-                                  updateSub({ options: opts, trigger_values: stv })
-                                }}
-                                className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                              />
-                              <button type="button"
-                                onClick={() => {
-                                  const opts = (subCfg.options ?? []).filter((_, j) => j !== i)
-                                  const stv = (subCfg.trigger_values ?? []).filter(v => opts.includes(v))
-                                  updateSub({ options: opts, trigger_values: stv })
-                                }}
-                                className="text-red-400 hover:text-red-600 text-sm px-2"
-                              >✕</button>
-                            </div>
-                          ))}
-                          <button type="button"
-                            onClick={() => updateSub({ options: [...(subCfg.options ?? []), ''] })}
-                            className="text-blue-600 text-xs font-semibold hover:underline"
-                          >+ 선택지 추가</button>
-                        </div>
-
-                        {/* 하위 기타 */}
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-semibold text-gray-600">기타 옵션 포함</label>
-                          <button type="button"
-                            onClick={() => {
-                              const next = !subCfg.has_other
-                              const stv = next ? (subCfg.trigger_values ?? []) : (subCfg.trigger_values ?? []).filter(v => v !== '기타')
-                              updateSub({ has_other: next, trigger_values: stv })
-                            }}
-                            className={`w-10 h-6 rounded-full transition-colors relative ${subCfg.has_other ? 'bg-blue-600' : 'bg-gray-200'}`}
-                          >
-                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${subCfg.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </button>
-                        </div>
-
-                        {/* 중첩 질문 트리거 */}
-                        {[...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])].filter(o => o.trim()).length > 0 && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                            <label className="block text-xs font-semibold text-amber-700 mb-2">
-                              중첩 질문 표시 트리거
-                            </label>
-                            <div className="space-y-1.5">
-                              {[...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])].filter(o => o.trim()).map(opt => {
-                                const checked = (subCfg.trigger_values ?? []).includes(opt)
-                                return (
-                                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" checked={checked}
-                                      onChange={() => {
-                                        const tv = subCfg.trigger_values ?? []
-                                        updateSub({ trigger_values: checked ? tv.filter(v => v !== opt) : [...tv, opt] })
-                                      }}
-                                      className="rounded accent-amber-600"
-                                    />
-                                    <span className="text-xs text-gray-700">{opt}</span>
-                                  </label>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* 하위 척도 크기 */}
-                    {subCfg?.type === 'scale' && (
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">척도 크기</label>
-                        <input type="number" min={2} max={10}
-                          value={subCfg.scale_size ?? 5}
-                          onChange={e => updateSub({ scale_size: Number(e.target.value) })}
-                          className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    )}
-
-                    {/* ⑥ 중첩 질문 편집기 */}
-                    {(subCfg?.trigger_values ?? []).length > 0 && (
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
-                        <div className="text-xs font-bold text-indigo-700">↳↳ 중첩 질문</div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">질문 내용</label>
-                          <textarea rows={2}
-                            value={subCfg?.nested?.text ?? ''}
-                            onChange={e => updateNested({ text: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 resize-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">질문 유형</label>
-                          <select value={subCfg?.nested?.type ?? 'text'}
-                            onChange={e => {
-                              const t = e.target.value as ConditionalNestedConfig['type']
-                              updateNested({ type: t, options: [], has_other: false, scale_size: t === 'scale' ? 5 : undefined })
-                            }}
-                            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                          >
-                            <option value="text">단답형</option>
-                            <option value="textarea">장문형</option>
-                            <option value="radio">단일 선택</option>
-                            <option value="checkbox">복수 선택</option>
-                            <option value="scale">척도</option>
-                          </select>
-                        </div>
-
-                        {(subCfg?.nested?.type === 'radio' || subCfg?.nested?.type === 'checkbox') && (
-                          <>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1">중첩 선택지</label>
-                              {(subCfg.nested.options ?? []).map((opt, i) => (
-                                <div key={i} className="flex items-center gap-2 mb-1">
-                                  <input value={opt}
-                                    onChange={e => {
-                                      const opts = [...(subCfg.nested!.options ?? [])]; opts[i] = e.target.value
-                                      updateNested({ options: opts })
-                                    }}
-                                    className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
-                                  />
-                                  <button type="button"
-                                    onClick={() => updateNested({ options: (subCfg.nested!.options ?? []).filter((_, j) => j !== i) })}
-                                    className="text-red-400 hover:text-red-600 text-sm px-2"
-                                  >✕</button>
-                                </div>
-                              ))}
-                              <button type="button"
-                                onClick={() => updateNested({ options: [...(subCfg.nested!.options ?? []), ''] })}
-                                className="text-indigo-600 text-xs font-semibold hover:underline"
-                              >+ 선택지 추가</button>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <label className="text-xs font-semibold text-gray-600">기타 옵션 포함</label>
-                              <button type="button"
-                                onClick={() => updateNested({ has_other: !subCfg.nested!.has_other })}
-                                className={`w-10 h-6 rounded-full transition-colors relative ${subCfg.nested?.has_other ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                              >
-                                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${subCfg.nested?.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
-                              </button>
-                            </div>
-                          </>
-                        )}
-
-                        {subCfg?.nested?.type === 'scale' && (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">척도 크기</label>
-                            <input type="number" min={2} max={10}
-                              value={subCfg.nested.scale_size ?? 5}
-                              onChange={e => updateNested({ scale_size: Number(e.target.value) })}
-                              className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )
           })()}

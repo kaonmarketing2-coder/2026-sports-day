@@ -13,6 +13,15 @@ export type MatrixItem = {
   label: string
 }
 
+export type BranchQuestion = {
+  id: string
+  text: string
+  type: 'text' | 'textarea' | 'radio' | 'checkbox' | 'scale'
+  options?: string[]
+  has_other?: boolean
+  scale_size?: number
+}
+
 export type ConditionalNestedConfig = {
   text: string
   type: 'text' | 'textarea' | 'radio' | 'checkbox' | 'scale'
@@ -43,9 +52,11 @@ export type QuestionConfig = {
   // conditional – legacy only
   satisfaction_labels?: string[]
   zones?: string[]
-  // conditional – new format
+  // conditional – new format (per-option branching)
   multi_select?: boolean
   has_other?: boolean
+  option_branches?: Record<string, BranchQuestion[]>
+  // conditional – previous format (kept for compat)
   trigger_values?: string[]
   sub?: ConditionalSubConfig
 }
@@ -63,14 +74,17 @@ export type Question = {
 }
 
 export type ConditionalAnswer = {
-  // New format
+  // Current format – main selection
   selected?: string | string[] | null
   other_text?: string
+  // Per-option branch answers: [optionValue][questionId] = value
+  branch_answers?: Record<string, Record<string, AnswerValue>>
+  // Previous format compat (trigger_values + sub)
   sub_answer?: string | string[] | number | null
   sub_other_text?: string
   nested_answer?: string | string[] | number | null
   nested_other_text?: string
-  // Legacy format (backward compat)
+  // Legacy format compat (satisfaction_labels / zones)
   used?: boolean | null
   satisfaction?: number | null
   zones?: string[]

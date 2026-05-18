@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Question, AnswerValue, SurveyAnswers, MatrixItem, ConditionalAnswer } from '@/lib/types'
+import type { Question, AnswerValue, SurveyAnswers, MatrixItem, ConditionalAnswer, BranchQuestion } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
 // ── Question renderers ────────────────────────────────────────────────────────
@@ -284,14 +284,14 @@ function ConditionalInput({
   question: Question; value: AnswerValue; onChange: (v: ConditionalAnswer) => void
 }) {
   const cfg = question.config
-  const isLegacy = !cfg.sub && cfg.trigger_values === undefined && cfg.satisfaction_labels !== undefined
+  const isLegacy = !cfg.option_branches && cfg.trigger_values === undefined && cfg.satisfaction_labels !== undefined
 
   const condVal: ConditionalAnswer =
     value && typeof value === 'object' && !Array.isArray(value) && ('used' in (value as object) || 'selected' in (value as object))
       ? (value as ConditionalAnswer)
       : isLegacy ? { used: null, satisfaction: null, zones: [] } : { selected: null }
 
-  // ── Legacy format ─────────────────────────────────────────────────────────
+  // ── Legacy format (satisfaction_labels / zones) ───────────────────────────
   if (isLegacy) {
     const triggerOptions = cfg.trigger_options ?? ['이용 안 함', '이용함']
     const satisfactionLabels = cfg.satisfaction_labels ?? ['불만족', '보통', '만족']
@@ -342,146 +342,108 @@ function ConditionalInput({
     )
   }
 
-  // ── New format ────────────────────────────────────────────────────────────
+  // ── New format with per-option branches ───────────────────────────────────
   const mainOpts = cfg.trigger_options ?? []
   const multiSelect = cfg.multi_select ?? false
-  const triggerVals = cfg.trigger_values ?? []
-  const subCfg = cfg.sub
-  const allMainOpts = [...mainOpts, ...(cfg.has_other ? ['기타'] : [])]
+  const allOpts = [...mainOpts, ...(cfg.has_other ? ['기타'] : [])]
+  const optionBranches = cfg.option_branches ?? {}
 
   const selected = condVal.selected ?? (multiSelect ? [] : null)
+  const selectedArr: string[] = multiSelect
+    ? Array.isArray(selected) ? (selected as string[]) : []
+    : typeof selected === 'string' ? [selected] : []
 
   const handleMainSelect = (opt: string) => {
     if (multiSelect) {
-      const arr = Array.isArray(selected) ? (selected as string[]) : []
-      const next = arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt]
-      onChange({ ...condVal, selected: next, sub_answer: null, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
+      const arr = selectedArr
+      const isSelected = arr.includes(opt)
+      const next = isSelected ? arr.filter(x => x !== opt) : [...arr, opt]
+      const newBranchAnswers = { ...(condVal.branch_answers ?? {}) }
+      if (isSelected) delete newBranchAnswers[opt]
+      onChange({ ...condVal, selected: next, branch_answers: newBranchAnswers })
     } else {
-      onChange({ ...condVal, selected: selected === opt ? null : opt, other_text: undefined, sub_answer: null, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
+      const newOpt = selected === opt ? null : opt
+      onChange({ ...condVal, selected: newOpt, other_text: undefined, branch_answers: {} })
     }
   }
 
-  const isTriggered = triggerVals.length > 0 && (
-    multiSelect
-      ? Array.isArray(selected) && (selected as string[]).some(s => triggerVals.includes(s))
-      : typeof selected === 'string' && triggerVals.includes(selected)
-  )
-
-  const subMulti = subCfg?.type === 'checkbox'
-  const subSel = condVal.sub_answer ?? (subMulti ? [] : null)
-
-  const handleSubSelect = (opt: string) => {
-    if (subMulti) {
-      const arr = Array.isArray(subSel) ? (subSel as string[]) : []
-      const next = arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt]
-      onChange({ ...condVal, sub_answer: next, nested_answer: null, nested_other_text: undefined })
-    } else {
-      onChange({ ...condVal, sub_answer: subSel === opt ? null : opt, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
-    }
+  const updateBranchAnswer = (opt: string, qid: string, val: AnswerValue) => {
+    const optAns = condVal.branch_answers?.[opt] ?? {}
+    onChange({
+      ...condVal,
+      branch_answers: { ...(condVal.branch_answers ?? {}), [opt]: { ...optAns, [qid]: val } },
+    })
   }
 
-  const subTriggerVals = subCfg?.trigger_values ?? []
-  const subIsTriggered = isTriggered && subTriggerVals.length > 0 && subCfg?.nested && (
-    subMulti
-      ? Array.isArray(subSel) && (subSel as string[]).some(s => subTriggerVals.includes(s))
-      : typeof subSel === 'string' && subTriggerVals.includes(subSel)
-  )
-
-  const nestedMulti = subCfg?.nested?.type === 'checkbox'
-  const nestedSel = condVal.nested_answer ?? (nestedMulti ? [] : null)
-
-  const handleNestedSelect = (opt: string) => {
-    if (nestedMulti) {
-      const arr = Array.isArray(nestedSel) ? (nestedSel as string[]) : []
-      onChange({ ...condVal, nested_answer: arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt] })
-    } else {
-      onChange({ ...condVal, nested_answer: nestedSel === opt ? null : opt, nested_other_text: undefined })
-    }
+  const updateBranchOther = (opt: string, qid: string, text: string) => {
+    const optAns = condVal.branch_answers?.[opt] ?? {}
+    onChange({
+      ...condVal,
+      branch_answers: { ...(condVal.branch_answers ?? {}), [opt]: { ...optAns, [qid + '__other']: text } },
+    })
   }
 
-  const renderSubInput = () => {
-    if (!subCfg) return null
-    if (subCfg.type === 'text') return (
+  const renderBranchQ = (bq: BranchQuestion, opt: string) => {
+    const answers = condVal.branch_answers?.[opt] ?? {}
+    const val = answers[bq.id] ?? null
+
+    if (bq.type === 'text') return (
       <input type="text" placeholder="직접 입력해 주세요"
-        value={typeof condVal.sub_answer === 'string' ? condVal.sub_answer : ''}
-        onChange={e => onChange({ ...condVal, sub_answer: e.target.value })}
+        value={typeof val === 'string' ? val : ''}
+        onChange={e => updateBranchAnswer(opt, bq.id, e.target.value)}
         className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
       />
     )
-    if (subCfg.type === 'textarea') return (
+    if (bq.type === 'textarea') return (
       <textarea placeholder="직접 입력해 주세요" rows={3}
-        value={typeof condVal.sub_answer === 'string' ? condVal.sub_answer : ''}
-        onChange={e => onChange({ ...condVal, sub_answer: e.target.value })}
+        value={typeof val === 'string' ? val : ''}
+        onChange={e => updateBranchAnswer(opt, bq.id, e.target.value)}
         className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
       />
     )
-    if (subCfg.type === 'scale') return (
-      <div className="flex gap-2">
-        {Array.from({ length: subCfg.scale_size ?? 5 }, (_, i) => i + 1).map(n => (
-          <button key={n} type="button"
-            onClick={() => onChange({ ...condVal, sub_answer: n, nested_answer: null, nested_other_text: undefined })}
-            className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${condVal.sub_answer === n ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
-          >{n}</button>
-        ))}
-      </div>
-    )
-    const subOpts = [...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])]
-    return (
-      <div className="flex flex-col gap-2">
-        {subOpts.map(opt => {
-          const isSel = subMulti ? Array.isArray(subSel) && (subSel as string[]).includes(opt) : subSel === opt
-          return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={subMulti} onClick={() => handleSubSelect(opt)} />
-        })}
-        {subCfg.has_other && (subMulti ? Array.isArray(subSel) && (subSel as string[]).includes('기타') : subSel === '기타') && (
-          <input type="text" placeholder="직접 입력해 주세요" autoFocus
-            value={condVal.sub_other_text ?? ''}
-            onChange={e => onChange({ ...condVal, sub_other_text: e.target.value })}
-            className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50"
-          />
-        )}
-      </div>
-    )
-  }
+    if (bq.type === 'scale') {
+      const size = bq.scale_size ?? 5
+      return (
+        <div className="flex gap-2">
+          {Array.from({ length: size }, (_, i) => i + 1).map(n => (
+            <button key={n} type="button"
+              onClick={() => updateBranchAnswer(opt, bq.id, n)}
+              className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${val === n ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+            >{n}</button>
+          ))}
+        </div>
+      )
+    }
+    // radio or checkbox
+    const isCheck = bq.type === 'checkbox'
+    const bqOpts = [...(bq.options ?? []), ...(bq.has_other ? ['기타'] : [])]
+    const bqSel = val ?? (isCheck ? [] : null)
+    const otherText = (answers[bq.id + '__other'] as string) ?? ''
 
-  const renderNestedInput = () => {
-    const nested = subCfg?.nested
-    if (!nested) return null
-    if (nested.type === 'text') return (
-      <input type="text" placeholder="직접 입력해 주세요"
-        value={typeof condVal.nested_answer === 'string' ? condVal.nested_answer : ''}
-        onChange={e => onChange({ ...condVal, nested_answer: e.target.value })}
-        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500"
-      />
-    )
-    if (nested.type === 'textarea') return (
-      <textarea placeholder="직접 입력해 주세요" rows={3}
-        value={typeof condVal.nested_answer === 'string' ? condVal.nested_answer : ''}
-        onChange={e => onChange({ ...condVal, nested_answer: e.target.value })}
-        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 resize-none"
-      />
-    )
-    if (nested.type === 'scale') return (
-      <div className="flex gap-2">
-        {Array.from({ length: nested.scale_size ?? 5 }, (_, i) => i + 1).map(n => (
-          <button key={n} type="button"
-            onClick={() => onChange({ ...condVal, nested_answer: n })}
-            className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${condVal.nested_answer === n ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300'}`}
-          >{n}</button>
-        ))}
-      </div>
-    )
-    const nestedOpts = [...(nested.options ?? []), ...(nested.has_other ? ['기타'] : [])]
+    const handleBqSelect = (o: string) => {
+      if (isCheck) {
+        const arr = Array.isArray(bqSel) ? (bqSel as string[]) : []
+        const next = arr.includes(o) ? arr.filter(x => x !== o) : [...arr, o]
+        updateBranchAnswer(opt, bq.id, next)
+      } else {
+        updateBranchAnswer(opt, bq.id, bqSel === o ? null : o)
+        if (bqSel !== o) updateBranchOther(opt, bq.id, '')
+      }
+    }
+
     return (
       <div className="flex flex-col gap-2">
-        {nestedOpts.map(opt => {
-          const isSel = nestedMulti ? Array.isArray(nestedSel) && (nestedSel as string[]).includes(opt) : nestedSel === opt
-          return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={nestedMulti} color="indigo" onClick={() => handleNestedSelect(opt)} />
+        {bqOpts.map(o => {
+          const isSel = isCheck
+            ? Array.isArray(bqSel) && (bqSel as string[]).includes(o)
+            : bqSel === o
+          return <CondSelBtn key={o} opt={o} isSelected={isSel} multi={isCheck} onClick={() => handleBqSelect(o)} />
         })}
-        {nested.has_other && (nestedMulti ? Array.isArray(nestedSel) && (nestedSel as string[]).includes('기타') : nestedSel === '기타') && (
+        {bq.has_other && (isCheck ? Array.isArray(bqSel) && (bqSel as string[]).includes('기타') : bqSel === '기타') && (
           <input type="text" placeholder="직접 입력해 주세요" autoFocus
-            value={condVal.nested_other_text ?? ''}
-            onChange={e => onChange({ ...condVal, nested_other_text: e.target.value })}
-            className="w-full border-2 border-indigo-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 bg-indigo-50"
+            value={otherText}
+            onChange={e => updateBranchOther(opt, bq.id, e.target.value)}
+            className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50"
           />
         )}
       </div>
@@ -490,31 +452,38 @@ function ConditionalInput({
 
   return (
     <div>
+      {/* Main options */}
       <div className="flex flex-col gap-2">
-        {allMainOpts.map(opt => {
-          const isSel = multiSelect ? Array.isArray(selected) && (selected as string[]).includes(opt) : selected === opt
+        {allOpts.map(opt => {
+          const isSel = multiSelect ? selectedArr.includes(opt) : selected === opt
           return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={multiSelect} onClick={() => handleMainSelect(opt)} />
         })}
       </div>
-      {cfg.has_other && (multiSelect ? Array.isArray(selected) && (selected as string[]).includes('기타') : selected === '기타') && (
+
+      {/* 기타 text */}
+      {cfg.has_other && selectedArr.includes('기타') && (
         <input type="text" placeholder="직접 입력해 주세요" autoFocus
           value={condVal.other_text ?? ''}
           onChange={e => onChange({ ...condVal, other_text: e.target.value })}
           className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50 mt-2"
         />
       )}
-      {isTriggered && subCfg && (
-        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-          <p className="text-sm font-semibold text-blue-800 mb-3">{subCfg.text}</p>
-          {renderSubInput()}
-          {subIsTriggered && subCfg.nested && (
-            <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-200">
-              <p className="text-sm font-semibold text-indigo-800 mb-3">{subCfg.nested.text}</p>
-              {renderNestedInput()}
-            </div>
-          )}
-        </div>
-      )}
+
+      {/* Branch questions for each selected option */}
+      {selectedArr.map(opt => {
+        const bqs = optionBranches[opt] ?? []
+        if (bqs.length === 0) return null
+        return (
+          <div key={opt} className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 space-y-5">
+            {bqs.map(bq => (
+              <div key={bq.id}>
+                {bq.text && <p className="text-sm font-semibold text-blue-800 mb-2">{bq.text}</p>}
+                {renderBranchQ(bq, opt)}
+              </div>
+            ))}
+          </div>
+        )
+      })}
     </div>
   )
 }
