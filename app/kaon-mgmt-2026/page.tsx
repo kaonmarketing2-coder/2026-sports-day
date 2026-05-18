@@ -55,6 +55,49 @@ async function exportToExcel(questions: Question[], responses: SurveyResponseRow
   writeFile(wb, `KAON_체육대회_설문_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.xlsx`)
 }
 
+async function downloadAllPhotos(
+  questions: Question[],
+  responses: SurveyResponseRow[],
+  onProgress: (msg: string) => void
+) {
+  const photoQuestions = questions.filter(q => q.question_type === 'photo')
+  const allUrls: string[] = photoQuestions.flatMap(q =>
+    responses.flatMap(r =>
+      Array.isArray(r.answers[q.id]) ? (r.answers[q.id] as string[]) : []
+    )
+  )
+  if (!allUrls.length) {
+    alert('다운로드할 사진이 없습니다.')
+    return
+  }
+
+  onProgress('사진 다운로드 준비 중...')
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+
+  for (let i = 0; i < allUrls.length; i++) {
+    onProgress(`사진 가져오는 중... (${i + 1}/${allUrls.length})`)
+    try {
+      const res = await fetch(allUrls[i])
+      const blob = await res.blob()
+      const ext = blob.type.split('/')[1] ?? 'jpg'
+      zip.file(`photo_${String(i + 1).padStart(3, '0')}.${ext}`, blob)
+    } catch {
+      // skip failed photos
+    }
+  }
+
+  onProgress('ZIP 파일 생성 중...')
+  const content = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(content)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `KAON_체육대회_사진_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.zip`
+  a.click()
+  URL.revokeObjectURL(url)
+  onProgress('')
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function avgOfScores(responses: SurveyResponseRow[], qid: string): number {
@@ -1173,6 +1216,7 @@ export default function AdminPage() {
   const [responses, setResponses] = useState<SurveyResponseRow[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(false)
+  const [photoProgress, setPhotoProgress] = useState('')
 
   const [selected, setSelected] = useState<SurveyResponseRow | null>(null)
   const [activeTab, setActiveTab] = useState<'summary' | 'list' | 'questions'>('summary')
@@ -1217,12 +1261,7 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => {
-    if (authed) {
-      const id = setInterval(() => fetchAll(storedPwd), 30000)
-      return () => clearInterval(id)
-    }
-  }, [authed, storedPwd, fetchAll])
+  // 자동 새로고침 없음 — 헤더의 수동 새로고침 버튼 사용
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
@@ -1282,7 +1321,7 @@ export default function AdminPage() {
             <div>
               <div className="text-white font-bold text-sm">관리자 대시보드</div>
               <div className="text-blue-200 text-xs">
-                총 {responses.length}개 응답 · 30초마다 자동 갱신
+                총 {responses.length}개 응답
               </div>
             </div>
           </div>
@@ -1319,15 +1358,29 @@ export default function AdminPage() {
           <StatsTab responses={responses} questions={questions} />
         ) : activeTab === 'list' ? (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <span className="text-sm text-gray-500 font-semibold">총 {responses.length}개 응답</span>
-              <button
-                onClick={() => exportToExcel(questions, responses)}
-                disabled={responses.length === 0}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
-              >
-                📥 엑셀 다운로드
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {photoProgress && (
+                  <span className="text-xs text-blue-600 font-semibold">{photoProgress}</span>
+                )}
+                {questions.some(q => q.question_type === 'photo') && (
+                  <button
+                    onClick={() => downloadAllPhotos(questions, responses, setPhotoProgress)}
+                    disabled={responses.length === 0 || !!photoProgress}
+                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                  >
+                    📦 사진 일괄 다운로드
+                  </button>
+                )}
+                <button
+                  onClick={() => exportToExcel(questions, responses)}
+                  disabled={responses.length === 0}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  📥 엑셀 다운로드
+                </button>
+              </div>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               {responses.length === 0 ? (
