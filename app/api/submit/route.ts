@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { error } = await supabase.from('sports_day_responses').insert([body])
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+  const { error } = await supabase
+    .from('survey_responses')
+    .insert([{ answers: body.answers }])
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ success: true })
 }
