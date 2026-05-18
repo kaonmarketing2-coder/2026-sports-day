@@ -269,9 +269,13 @@ function CondSelBtn({
           {isSelected && <span className="text-white text-xs">✓</span>}
         </span>
       ) : (
-        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? `border-${color}-600` : 'border-gray-300'}`}>
-          {isSelected && <span className={`w-2.5 h-2.5 rounded-full ${dot} block`} />}
-        </span>
+        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+  isSelected
+    ? color === 'indigo' ? 'border-indigo-600' : 'border-blue-600'
+    : 'border-gray-300'
+}`}>
+  {isSelected && <span className={`w-2.5 h-2.5 rounded-full ${dot} block`} />}
+</span>
       )}
       {opt}
     </button>
