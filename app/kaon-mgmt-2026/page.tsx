@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType } from '@/lib/types'
+import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType, ConditionalSubConfig, ConditionalNestedConfig } from '@/lib/types'
 
 // ── Excel export ──────────────────────────────────────────────────────────────
 
@@ -30,9 +30,27 @@ function flattenAnswer(q: Question, r: SurveyResponseRow): string {
   }
   if (q.question_type === 'conditional') {
     const cv = val as ConditionalAnswer
-    if (cv.used === null) return ''
-    if (!cv.used) return '이용 안 함'
-    return `이용함 (만족도: ${cv.satisfaction ?? ''}, 존: ${(cv.zones ?? []).join('/')})`
+    if ('used' in cv && cv.used !== undefined) {
+      if (cv.used === null) return ''
+      if (!cv.used) return '이용 안 함'
+      return `이용함 (만족도: ${cv.satisfaction ?? ''}, 존: ${(cv.zones ?? []).join('/')})`
+    }
+    const sel = cv.selected
+    if (sel === null || sel === undefined) return ''
+    const selStr = Array.isArray(sel) ? sel.join(', ') : String(sel)
+    const parts = [selStr]
+    if (cv.other_text) parts.push(`기타: ${cv.other_text}`)
+    if (cv.sub_answer !== null && cv.sub_answer !== undefined) {
+      const s = Array.isArray(cv.sub_answer) ? (cv.sub_answer as string[]).join(', ') : String(cv.sub_answer)
+      parts.push(`↳ ${s}`)
+      if (cv.sub_other_text) parts.push(`기타: ${cv.sub_other_text}`)
+    }
+    if (cv.nested_answer !== null && cv.nested_answer !== undefined) {
+      const n = Array.isArray(cv.nested_answer) ? (cv.nested_answer as string[]).join(', ') : String(cv.nested_answer)
+      parts.push(`  ↳ ${n}`)
+      if (cv.nested_other_text) parts.push(`기타: ${cv.nested_other_text}`)
+    }
+    return parts.join(' / ')
   }
   if (q.question_type === 'photo') {
     return Array.isArray(val) ? (val as string[]).join('\n') : ''
@@ -231,10 +249,28 @@ function ResponseModal({
     }
     if (q.question_type === 'conditional') {
       const cv = val as ConditionalAnswer
-      if (cv.used === null) return '-'
-      if (!cv.used) return '이용 안 함'
-      const zones = cv.zones?.join('/') ?? ''
-      return `이용함 (만족도: ${cv.satisfaction ?? '-'}, ${zones})`
+      if ('used' in cv && cv.used !== undefined) {
+        if (cv.used === null) return '-'
+        if (!cv.used) return '이용 안 함'
+        const zones = cv.zones?.join('/') ?? ''
+        return `이용함 (만족도: ${cv.satisfaction ?? '-'}, ${zones})`
+      }
+      const sel = cv.selected
+      if (sel === null || sel === undefined) return '-'
+      const selStr = Array.isArray(sel) ? sel.join(', ') : String(sel)
+      const parts = [selStr]
+      if (cv.other_text) parts.push(`기타: ${cv.other_text}`)
+      if (cv.sub_answer !== null && cv.sub_answer !== undefined) {
+        const s = Array.isArray(cv.sub_answer) ? (cv.sub_answer as string[]).join(', ') : String(cv.sub_answer)
+        parts.push(`↳ ${s}`)
+        if (cv.sub_other_text) parts.push(`기타: ${cv.sub_other_text}`)
+      }
+      if (cv.nested_answer !== null && cv.nested_answer !== undefined) {
+        const n = Array.isArray(cv.nested_answer) ? (cv.nested_answer as string[]).join(', ') : String(cv.nested_answer)
+        parts.push(`  ↳ ${n}`)
+        if (cv.nested_other_text) parts.push(`기타: ${cv.nested_other_text}`)
+      }
+      return parts.join(' / ')
     }
     if (q.question_type === 'photo') {
       const urls = Array.isArray(val) ? (val as string[]) : []
@@ -325,6 +361,10 @@ type QuestionDraft = {
     trigger_options?: string[]
     satisfaction_labels?: string[]
     zones?: string[]
+    multi_select?: boolean
+    has_other?: boolean
+    trigger_values?: string[]
+    sub?: ConditionalSubConfig
   }
   is_active: boolean
 }
@@ -378,9 +418,10 @@ function QuestionEditModal({
     else if (t === 'matrix') defaults.config = { size: 5 }
     else if (t === 'conditional')
       defaults.config = {
-        trigger_options: ['이용 안 함', '이용함'],
-        satisfaction_labels: ['불만족', '보통', '만족'],
-        zones: [],
+        trigger_options: [],
+        multi_select: false,
+        has_other: false,
+        trigger_values: [],
       }
     else if (t === 'photo') defaults.config = { max_files: 5, max_mb: 10 }
     else defaults.config = {}
@@ -638,126 +679,310 @@ function QuestionEditModal({
           )}
 
           {/* conditional */}
-          {draft.question_type === 'conditional' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">트리거 선택지</label>
-                {(draft.config.trigger_options ?? []).map((opt, i) => (
-                  <div key={i} className="flex items-center gap-2 mb-1">
-                    <input
-                      value={opt}
-                      onChange={e => {
-                        const arr = [...(draft.config.trigger_options ?? [])]
-                        arr[i] = e.target.value
-                        setConfig('trigger_options', arr)
-                      }}
-                      className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfig(
-                          'trigger_options',
-                          (draft.config.trigger_options ?? []).filter((_, j) => j !== i)
-                        )
-                      }
-                      className="text-red-400 hover:text-red-600 text-sm px-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConfig('trigger_options', [...(draft.config.trigger_options ?? []), ''])
-                  }
-                  className="text-blue-600 text-xs font-semibold hover:underline"
-                >
-                  + 추가
-                </button>
-              </div>
+          {draft.question_type === 'conditional' && (() => {
+            const mainOpts = draft.config.trigger_options ?? []
+            const triggerVals = draft.config.trigger_values ?? []
+            const subCfg = draft.config.sub
+            const allMainOpts = [...mainOpts, ...(draft.config.has_other ? ['기타'] : [])]
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">
-                  만족도 레이블
-                </label>
-                {(draft.config.satisfaction_labels ?? []).map((opt, i) => (
-                  <div key={i} className="flex items-center gap-2 mb-1">
-                    <input
-                      value={opt}
-                      onChange={e => {
-                        const arr = [...(draft.config.satisfaction_labels ?? [])]
-                        arr[i] = e.target.value
-                        setConfig('satisfaction_labels', arr)
-                      }}
-                      className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfig(
-                          'satisfaction_labels',
-                          (draft.config.satisfaction_labels ?? []).filter((_, j) => j !== i)
-                        )
-                      }
-                      className="text-red-400 hover:text-red-600 text-sm px-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConfig('satisfaction_labels', [
-                      ...(draft.config.satisfaction_labels ?? []),
-                      '',
-                    ])
-                  }
-                  className="text-blue-600 text-xs font-semibold hover:underline"
-                >
-                  + 추가
-                </button>
-              </div>
+            const updateSub = (patch: Partial<ConditionalSubConfig>) =>
+              setConfig('sub', { ...(subCfg ?? { text: '', type: 'text' as const }), ...patch })
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">존 목록</label>
-                {(draft.config.zones ?? []).map((zone, i) => (
-                  <div key={i} className="flex items-center gap-2 mb-1">
-                    <input
-                      value={zone}
-                      onChange={e => {
-                        const arr = [...(draft.config.zones ?? [])]
-                        arr[i] = e.target.value
-                        setConfig('zones', arr)
-                      }}
-                      className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfig(
-                          'zones',
-                          (draft.config.zones ?? []).filter((_, j) => j !== i)
-                        )
-                      }
-                      className="text-red-400 hover:text-red-600 text-sm px-2"
-                    >
-                      ✕
-                    </button>
+            const updateNested = (patch: Partial<ConditionalNestedConfig>) =>
+              updateSub({ nested: { ...(subCfg?.nested ?? { text: '', type: 'text' as const }), ...patch } })
+
+            return (
+              <div className="space-y-4">
+                {/* ① 메인 선택지 */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">선택지</label>
+                  {mainOpts.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-1">
+                      <input
+                        value={opt}
+                        onChange={e => {
+                          const arr = [...mainOpts]; arr[i] = e.target.value
+                          const tv = triggerVals.filter(v => arr.includes(v))
+                          setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, trigger_values: tv } }))
+                        }}
+                        placeholder={`선택지 ${i + 1}`}
+                        className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                      />
+                      <button type="button"
+                        onClick={() => {
+                          const arr = mainOpts.filter((_, j) => j !== i)
+                          const tv = triggerVals.filter(v => arr.includes(v))
+                          setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr, trigger_values: tv } }))
+                        }}
+                        className="text-red-400 hover:text-red-600 text-sm px-2"
+                      >✕</button>
+                    </div>
+                  ))}
+                  <button type="button"
+                    onClick={() => setConfig('trigger_options', [...mainOpts, ''])}
+                    className="text-blue-600 text-xs font-semibold hover:underline"
+                  >+ 선택지 추가</button>
+                </div>
+
+                {/* ② 기타 옵션 */}
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-semibold text-gray-600">기타 옵션 포함</label>
+                  <button type="button"
+                    onClick={() => {
+                      const next = !draft.config.has_other
+                      const tv = next ? triggerVals : triggerVals.filter(v => v !== '기타')
+                      setDraft(p => ({ ...p, config: { ...p.config, has_other: next, trigger_values: tv } }))
+                    }}
+                    className={`w-10 h-6 rounded-full transition-colors relative ${draft.config.has_other ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${draft.config.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* ③ 단일/복수 선택 */}
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-semibold text-gray-600">선택 방식</label>
+                  <div className="flex gap-2">
+                    {[{ label: '단일 선택', val: false }, { label: '복수 선택', val: true }].map(({ label, val }) => (
+                      <button key={String(val)} type="button"
+                        onClick={() => setConfig('multi_select', val)}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 transition-all ${
+                          (draft.config.multi_select ?? false) === val
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                        }`}
+                      >{label}</button>
+                    ))}
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setConfig('zones', [...(draft.config.zones ?? []), ''])}
-                  className="text-blue-600 text-xs font-semibold hover:underline"
-                >
-                  + 추가
-                </button>
+                </div>
+
+                {/* ④ 하위 질문 트리거 선택 */}
+                {allMainOpts.filter(o => o.trim()).length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <label className="block text-xs font-semibold text-amber-700 mb-2">
+                      하위 질문 표시 트리거 (체크한 선택지를 골랐을 때 하위 질문 표시)
+                    </label>
+                    <div className="space-y-1.5">
+                      {allMainOpts.filter(o => o.trim()).map(opt => {
+                        const checked = triggerVals.includes(opt)
+                        return (
+                          <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={checked}
+                              onChange={() => {
+                                const next = checked ? triggerVals.filter(v => v !== opt) : [...triggerVals, opt]
+                                setConfig('trigger_values', next)
+                              }}
+                              className="rounded accent-amber-600"
+                            />
+                            <span className="text-xs text-gray-700">{opt}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ⑤ 하위 질문 편집기 */}
+                {triggerVals.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                    <div className="text-xs font-bold text-blue-700">↳ 하위 질문</div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">질문 내용</label>
+                      <textarea rows={2}
+                        value={subCfg?.text ?? ''}
+                        onChange={e => updateSub({ text: e.target.value })}
+                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">질문 유형</label>
+                      <select value={subCfg?.type ?? 'text'}
+                        onChange={e => {
+                          const t = e.target.value as ConditionalSubConfig['type']
+                          updateSub({ type: t, options: [], has_other: false, scale_size: t === 'scale' ? 5 : undefined, trigger_values: [], nested: undefined })
+                        }}
+                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="text">단답형</option>
+                        <option value="textarea">장문형</option>
+                        <option value="radio">단일 선택</option>
+                        <option value="checkbox">복수 선택</option>
+                        <option value="scale">척도</option>
+                      </select>
+                    </div>
+
+                    {/* 하위 선택지 */}
+                    {(subCfg?.type === 'radio' || subCfg?.type === 'checkbox') && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">하위 선택지</label>
+                          {(subCfg.options ?? []).map((opt, i) => (
+                            <div key={i} className="flex items-center gap-2 mb-1">
+                              <input value={opt}
+                                onChange={e => {
+                                  const opts = [...(subCfg.options ?? [])]; opts[i] = e.target.value
+                                  const stv = (subCfg.trigger_values ?? []).filter(v => opts.includes(v))
+                                  updateSub({ options: opts, trigger_values: stv })
+                                }}
+                                className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                              />
+                              <button type="button"
+                                onClick={() => {
+                                  const opts = (subCfg.options ?? []).filter((_, j) => j !== i)
+                                  const stv = (subCfg.trigger_values ?? []).filter(v => opts.includes(v))
+                                  updateSub({ options: opts, trigger_values: stv })
+                                }}
+                                className="text-red-400 hover:text-red-600 text-sm px-2"
+                              >✕</button>
+                            </div>
+                          ))}
+                          <button type="button"
+                            onClick={() => updateSub({ options: [...(subCfg.options ?? []), ''] })}
+                            className="text-blue-600 text-xs font-semibold hover:underline"
+                          >+ 선택지 추가</button>
+                        </div>
+
+                        {/* 하위 기타 */}
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs font-semibold text-gray-600">기타 옵션 포함</label>
+                          <button type="button"
+                            onClick={() => {
+                              const next = !subCfg.has_other
+                              const stv = next ? (subCfg.trigger_values ?? []) : (subCfg.trigger_values ?? []).filter(v => v !== '기타')
+                              updateSub({ has_other: next, trigger_values: stv })
+                            }}
+                            className={`w-10 h-6 rounded-full transition-colors relative ${subCfg.has_other ? 'bg-blue-600' : 'bg-gray-200'}`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${subCfg.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+
+                        {/* 중첩 질문 트리거 */}
+                        {[...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])].filter(o => o.trim()).length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                            <label className="block text-xs font-semibold text-amber-700 mb-2">
+                              중첩 질문 표시 트리거
+                            </label>
+                            <div className="space-y-1.5">
+                              {[...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])].filter(o => o.trim()).map(opt => {
+                                const checked = (subCfg.trigger_values ?? []).includes(opt)
+                                return (
+                                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={checked}
+                                      onChange={() => {
+                                        const tv = subCfg.trigger_values ?? []
+                                        updateSub({ trigger_values: checked ? tv.filter(v => v !== opt) : [...tv, opt] })
+                                      }}
+                                      className="rounded accent-amber-600"
+                                    />
+                                    <span className="text-xs text-gray-700">{opt}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* 하위 척도 크기 */}
+                    {subCfg?.type === 'scale' && (
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">척도 크기</label>
+                        <input type="number" min={2} max={10}
+                          value={subCfg.scale_size ?? 5}
+                          onChange={e => updateSub({ scale_size: Number(e.target.value) })}
+                          className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* ⑥ 중첩 질문 편집기 */}
+                    {(subCfg?.trigger_values ?? []).length > 0 && (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                        <div className="text-xs font-bold text-indigo-700">↳↳ 중첩 질문</div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">질문 내용</label>
+                          <textarea rows={2}
+                            value={subCfg?.nested?.text ?? ''}
+                            onChange={e => updateNested({ text: e.target.value })}
+                            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 resize-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">질문 유형</label>
+                          <select value={subCfg?.nested?.type ?? 'text'}
+                            onChange={e => {
+                              const t = e.target.value as ConditionalNestedConfig['type']
+                              updateNested({ type: t, options: [], has_other: false, scale_size: t === 'scale' ? 5 : undefined })
+                            }}
+                            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                          >
+                            <option value="text">단답형</option>
+                            <option value="textarea">장문형</option>
+                            <option value="radio">단일 선택</option>
+                            <option value="checkbox">복수 선택</option>
+                            <option value="scale">척도</option>
+                          </select>
+                        </div>
+
+                        {(subCfg?.nested?.type === 'radio' || subCfg?.nested?.type === 'checkbox') && (
+                          <>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">중첩 선택지</label>
+                              {(subCfg.nested.options ?? []).map((opt, i) => (
+                                <div key={i} className="flex items-center gap-2 mb-1">
+                                  <input value={opt}
+                                    onChange={e => {
+                                      const opts = [...(subCfg.nested!.options ?? [])]; opts[i] = e.target.value
+                                      updateNested({ options: opts })
+                                    }}
+                                    className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
+                                  />
+                                  <button type="button"
+                                    onClick={() => updateNested({ options: (subCfg.nested!.options ?? []).filter((_, j) => j !== i) })}
+                                    className="text-red-400 hover:text-red-600 text-sm px-2"
+                                  >✕</button>
+                                </div>
+                              ))}
+                              <button type="button"
+                                onClick={() => updateNested({ options: [...(subCfg.nested!.options ?? []), ''] })}
+                                className="text-indigo-600 text-xs font-semibold hover:underline"
+                              >+ 선택지 추가</button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <label className="text-xs font-semibold text-gray-600">기타 옵션 포함</label>
+                              <button type="button"
+                                onClick={() => updateNested({ has_other: !subCfg.nested!.has_other })}
+                                className={`w-10 h-6 rounded-full transition-colors relative ${subCfg.nested?.has_other ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                              >
+                                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${subCfg.nested?.has_other ? 'translate-x-5' : 'translate-x-1'}`} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {subCfg?.nested?.type === 'scale' && (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">척도 크기</label>
+                            <input type="number" min={2} max={10}
+                              value={subCfg.nested.scale_size ?? 5}
+                              onChange={e => updateNested({ scale_size: Number(e.target.value) })}
+                              className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* photo-specific */}
           {draft.question_type === 'photo' && (

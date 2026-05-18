@@ -252,100 +252,266 @@ function MatrixInput({
   )
 }
 
-function ConditionalInput({
-  question,
-  value,
-  onChange,
+function CondSelBtn({
+  opt, isSelected, multi, color = 'blue', onClick,
 }: {
-  question: Question
-  value: AnswerValue
-  onChange: (v: ConditionalAnswer) => void
+  opt: string; isSelected: boolean; multi: boolean; color?: 'blue' | 'indigo'; onClick: () => void
 }) {
-  const triggerOptions = question.config.trigger_options ?? ['이용 안 함', '이용함']
-  const satisfactionLabels = question.config.satisfaction_labels ?? ['불만족', '보통', '만족']
-  const zones = question.config.zones ?? []
+  const ring = color === 'indigo' ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-blue-600 bg-blue-50 text-blue-800'
+  const dot = color === 'indigo' ? 'bg-indigo-600' : 'bg-blue-600'
+  const box = color === 'indigo' ? 'border-indigo-600 bg-indigo-600' : 'border-blue-600 bg-blue-600'
+  return (
+    <button type="button" onClick={onClick}
+      className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left text-sm font-medium transition-all duration-150 ${isSelected ? ring : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+    >
+      {multi ? (
+        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? box : 'border-gray-300'}`}>
+          {isSelected && <span className="text-white text-xs">✓</span>}
+        </span>
+      ) : (
+        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? `border-${color}-600` : 'border-gray-300'}`}>
+          {isSelected && <span className={`w-2.5 h-2.5 rounded-full ${dot} block`} />}
+        </span>
+      )}
+      {opt}
+    </button>
+  )
+}
+
+function ConditionalInput({
+  question, value, onChange,
+}: {
+  question: Question; value: AnswerValue; onChange: (v: ConditionalAnswer) => void
+}) {
+  const cfg = question.config
+  const isLegacy = !cfg.sub && cfg.trigger_values === undefined && cfg.satisfaction_labels !== undefined
 
   const condVal: ConditionalAnswer =
-    value && typeof value === 'object' && !Array.isArray(value) && 'used' in (value as object)
+    value && typeof value === 'object' && !Array.isArray(value) && ('used' in (value as object) || 'selected' in (value as object))
       ? (value as ConditionalAnswer)
-      : { used: null, satisfaction: null, zones: [] }
+      : isLegacy ? { used: null, satisfaction: null, zones: [] } : { selected: null }
 
-  const setUsed = (used: boolean) => onChange({ ...condVal, used })
-  const setSatisfaction = (satisfaction: number) => onChange({ ...condVal, satisfaction })
-  const toggleZone = (zone: string) => {
-    const z = condVal.zones ?? []
-    const next = z.includes(zone) ? z.filter(x => x !== zone) : [...z, zone]
-    onChange({ ...condVal, zones: next })
+  // ── Legacy format ─────────────────────────────────────────────────────────
+  if (isLegacy) {
+    const triggerOptions = cfg.trigger_options ?? ['이용 안 함', '이용함']
+    const satisfactionLabels = cfg.satisfaction_labels ?? ['불만족', '보통', '만족']
+    const zones = cfg.zones ?? []
+    return (
+      <div>
+        <div className="flex gap-2 mb-4">
+          {triggerOptions.map((opt, i) => (
+            <button key={opt} type="button" onClick={() => onChange({ ...condVal, used: i !== 0 })}
+              className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all ${condVal.used === (i !== 0) && condVal.used !== null ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+            >{opt}</button>
+          ))}
+        </div>
+        {condVal.used === true && (
+          <div className="mt-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+            <p className="text-sm font-semibold text-blue-800 mb-3">이용하셨다면 만족도를 선택해 주세요.</p>
+            <div className="flex gap-2 mb-4">
+              {satisfactionLabels.map((opt, i) => (
+                <button key={opt} type="button" onClick={() => onChange({ ...condVal, satisfaction: i + 1 })}
+                  className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${condVal.satisfaction === i + 1 ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                >{i + 1}. {opt}</button>
+              ))}
+            </div>
+            {zones.length > 0 && (
+              <>
+                <p className="text-sm font-semibold text-blue-800 mb-2">어떤 존이 가장 좋았나요?</p>
+                <div className="flex flex-col gap-2">
+                  {zones.map(zone => {
+                    const on = (condVal.zones ?? []).includes(zone)
+                    return (
+                      <button key={zone} type="button"
+                        onClick={() => { const z = condVal.zones ?? []; onChange({ ...condVal, zones: on ? z.filter(x => x !== zone) : [...z, zone] }) }}
+                        className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left text-sm font-medium transition-all ${on ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+                      >
+                        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${on ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>
+                          {on && <span className="text-white text-xs">✓</span>}
+                        </span>
+                        {zone}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── New format ────────────────────────────────────────────────────────────
+  const mainOpts = cfg.trigger_options ?? []
+  const multiSelect = cfg.multi_select ?? false
+  const triggerVals = cfg.trigger_values ?? []
+  const subCfg = cfg.sub
+  const allMainOpts = [...mainOpts, ...(cfg.has_other ? ['기타'] : [])]
+
+  const selected = condVal.selected ?? (multiSelect ? [] : null)
+
+  const handleMainSelect = (opt: string) => {
+    if (multiSelect) {
+      const arr = Array.isArray(selected) ? (selected as string[]) : []
+      const next = arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt]
+      onChange({ ...condVal, selected: next, sub_answer: null, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
+    } else {
+      onChange({ ...condVal, selected: selected === opt ? null : opt, other_text: undefined, sub_answer: null, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
+    }
+  }
+
+  const isTriggered = triggerVals.length > 0 && (
+    multiSelect
+      ? Array.isArray(selected) && (selected as string[]).some(s => triggerVals.includes(s))
+      : typeof selected === 'string' && triggerVals.includes(selected)
+  )
+
+  const subMulti = subCfg?.type === 'checkbox'
+  const subSel = condVal.sub_answer ?? (subMulti ? [] : null)
+
+  const handleSubSelect = (opt: string) => {
+    if (subMulti) {
+      const arr = Array.isArray(subSel) ? (subSel as string[]) : []
+      const next = arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt]
+      onChange({ ...condVal, sub_answer: next, nested_answer: null, nested_other_text: undefined })
+    } else {
+      onChange({ ...condVal, sub_answer: subSel === opt ? null : opt, sub_other_text: undefined, nested_answer: null, nested_other_text: undefined })
+    }
+  }
+
+  const subTriggerVals = subCfg?.trigger_values ?? []
+  const subIsTriggered = isTriggered && subTriggerVals.length > 0 && subCfg?.nested && (
+    subMulti
+      ? Array.isArray(subSel) && (subSel as string[]).some(s => subTriggerVals.includes(s))
+      : typeof subSel === 'string' && subTriggerVals.includes(subSel)
+  )
+
+  const nestedMulti = subCfg?.nested?.type === 'checkbox'
+  const nestedSel = condVal.nested_answer ?? (nestedMulti ? [] : null)
+
+  const handleNestedSelect = (opt: string) => {
+    if (nestedMulti) {
+      const arr = Array.isArray(nestedSel) ? (nestedSel as string[]) : []
+      onChange({ ...condVal, nested_answer: arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt] })
+    } else {
+      onChange({ ...condVal, nested_answer: nestedSel === opt ? null : opt, nested_other_text: undefined })
+    }
+  }
+
+  const renderSubInput = () => {
+    if (!subCfg) return null
+    if (subCfg.type === 'text') return (
+      <input type="text" placeholder="직접 입력해 주세요"
+        value={typeof condVal.sub_answer === 'string' ? condVal.sub_answer : ''}
+        onChange={e => onChange({ ...condVal, sub_answer: e.target.value })}
+        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+      />
+    )
+    if (subCfg.type === 'textarea') return (
+      <textarea placeholder="직접 입력해 주세요" rows={3}
+        value={typeof condVal.sub_answer === 'string' ? condVal.sub_answer : ''}
+        onChange={e => onChange({ ...condVal, sub_answer: e.target.value })}
+        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
+      />
+    )
+    if (subCfg.type === 'scale') return (
+      <div className="flex gap-2">
+        {Array.from({ length: subCfg.scale_size ?? 5 }, (_, i) => i + 1).map(n => (
+          <button key={n} type="button"
+            onClick={() => onChange({ ...condVal, sub_answer: n, nested_answer: null, nested_other_text: undefined })}
+            className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${condVal.sub_answer === n ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'}`}
+          >{n}</button>
+        ))}
+      </div>
+    )
+    const subOpts = [...(subCfg.options ?? []), ...(subCfg.has_other ? ['기타'] : [])]
+    return (
+      <div className="flex flex-col gap-2">
+        {subOpts.map(opt => {
+          const isSel = subMulti ? Array.isArray(subSel) && (subSel as string[]).includes(opt) : subSel === opt
+          return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={subMulti} onClick={() => handleSubSelect(opt)} />
+        })}
+        {subCfg.has_other && (subMulti ? Array.isArray(subSel) && (subSel as string[]).includes('기타') : subSel === '기타') && (
+          <input type="text" placeholder="직접 입력해 주세요" autoFocus
+            value={condVal.sub_other_text ?? ''}
+            onChange={e => onChange({ ...condVal, sub_other_text: e.target.value })}
+            className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50"
+          />
+        )}
+      </div>
+    )
+  }
+
+  const renderNestedInput = () => {
+    const nested = subCfg?.nested
+    if (!nested) return null
+    if (nested.type === 'text') return (
+      <input type="text" placeholder="직접 입력해 주세요"
+        value={typeof condVal.nested_answer === 'string' ? condVal.nested_answer : ''}
+        onChange={e => onChange({ ...condVal, nested_answer: e.target.value })}
+        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500"
+      />
+    )
+    if (nested.type === 'textarea') return (
+      <textarea placeholder="직접 입력해 주세요" rows={3}
+        value={typeof condVal.nested_answer === 'string' ? condVal.nested_answer : ''}
+        onChange={e => onChange({ ...condVal, nested_answer: e.target.value })}
+        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 resize-none"
+      />
+    )
+    if (nested.type === 'scale') return (
+      <div className="flex gap-2">
+        {Array.from({ length: nested.scale_size ?? 5 }, (_, i) => i + 1).map(n => (
+          <button key={n} type="button"
+            onClick={() => onChange({ ...condVal, nested_answer: n })}
+            className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${condVal.nested_answer === n ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300'}`}
+          >{n}</button>
+        ))}
+      </div>
+    )
+    const nestedOpts = [...(nested.options ?? []), ...(nested.has_other ? ['기타'] : [])]
+    return (
+      <div className="flex flex-col gap-2">
+        {nestedOpts.map(opt => {
+          const isSel = nestedMulti ? Array.isArray(nestedSel) && (nestedSel as string[]).includes(opt) : nestedSel === opt
+          return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={nestedMulti} color="indigo" onClick={() => handleNestedSelect(opt)} />
+        })}
+        {nested.has_other && (nestedMulti ? Array.isArray(nestedSel) && (nestedSel as string[]).includes('기타') : nestedSel === '기타') && (
+          <input type="text" placeholder="직접 입력해 주세요" autoFocus
+            value={condVal.nested_other_text ?? ''}
+            onChange={e => onChange({ ...condVal, nested_other_text: e.target.value })}
+            className="w-full border-2 border-indigo-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 bg-indigo-50"
+          />
+        )}
+      </div>
+    )
   }
 
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        {triggerOptions.map((opt, i) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => setUsed(i !== 0)}
-            className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all ${
-              condVal.used === (i !== 0) && condVal.used !== null
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-            }`}
-          >
-            {opt}
-          </button>
-        ))}
+      <div className="flex flex-col gap-2">
+        {allMainOpts.map(opt => {
+          const isSel = multiSelect ? Array.isArray(selected) && (selected as string[]).includes(opt) : selected === opt
+          return <CondSelBtn key={opt} opt={opt} isSelected={isSel} multi={multiSelect} onClick={() => handleMainSelect(opt)} />
+        })}
       </div>
-      {condVal.used === true && (
-        <div className="mt-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-          <p className="text-sm font-semibold text-blue-800 mb-3">이용하셨다면 만족도를 선택해 주세요.</p>
-          <div className="flex gap-2 mb-4">
-            {satisfactionLabels.map((opt, i) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setSatisfaction(i + 1)}
-                className={`flex-1 py-2 rounded-xl border-2 text-sm font-bold transition-all ${
-                  condVal.satisfaction === i + 1
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-                }`}
-              >
-                {i + 1}. {opt}
-              </button>
-            ))}
-          </div>
-          {zones.length > 0 && (
-            <>
-              <p className="text-sm font-semibold text-blue-800 mb-2">어떤 존이 가장 좋았나요?</p>
-              <div className="flex flex-col gap-2">
-                {zones.map(zone => (
-                  <button
-                    key={zone}
-                    type="button"
-                    onClick={() => toggleZone(zone)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left text-sm font-medium transition-all duration-150 ${
-                      (condVal.zones ?? []).includes(zone)
-                        ? 'border-blue-600 bg-blue-50 text-blue-800'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
-                    }`}
-                  >
-                    <span
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                        (condVal.zones ?? []).includes(zone)
-                          ? 'border-blue-600 bg-blue-600'
-                          : 'border-gray-300'
-                      }`}
-                    >
-                      {(condVal.zones ?? []).includes(zone) && (
-                        <span className="text-white text-xs">✓</span>
-                      )}
-                    </span>
-                    {zone}
-                  </button>
-                ))}
-              </div>
-            </>
+      {cfg.has_other && (multiSelect ? Array.isArray(selected) && (selected as string[]).includes('기타') : selected === '기타') && (
+        <input type="text" placeholder="직접 입력해 주세요" autoFocus
+          value={condVal.other_text ?? ''}
+          onChange={e => onChange({ ...condVal, other_text: e.target.value })}
+          className="w-full border-2 border-blue-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 bg-blue-50 mt-2"
+        />
+      )}
+      {isTriggered && subCfg && (
+        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+          <p className="text-sm font-semibold text-blue-800 mb-3">{subCfg.text}</p>
+          {renderSubInput()}
+          {subIsTriggered && subCfg.nested && (
+            <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-200">
+              <p className="text-sm font-semibold text-indigo-800 mb-3">{subCfg.nested.text}</p>
+              {renderNestedInput()}
+            </div>
           )}
         </div>
       )}
@@ -539,8 +705,15 @@ export default function SurveyPage() {
           return `${q.question_text} 항목을 하나 이상 선택해 주세요.`
       } else if (q.question_type === 'conditional') {
         const condVal = val as ConditionalAnswer | null | undefined
-        if (!condVal || condVal.used === null)
-          return `${q.question_text} 항목을 선택해 주세요.`
+        if (!condVal) return `${q.question_text} 항목을 선택해 주세요.`
+        const isLegacy = !q.config.sub && q.config.trigger_values === undefined && q.config.satisfaction_labels !== undefined
+        if (isLegacy) {
+          if (condVal.used === null || condVal.used === undefined) return `${q.question_text} 항목을 선택해 주세요.`
+        } else {
+          const sel = condVal.selected
+          if (sel === null || sel === undefined || (Array.isArray(sel) && sel.length === 0))
+            return `${q.question_text} 항목을 선택해 주세요.`
+        }
       }
     }
     return ''
@@ -570,16 +743,22 @@ export default function SurveyPage() {
     }
   }
 
-  // Group questions by section_label preserving order
-  const sections: { label: string; questions: Question[] }[] = []
+  // Group questions by normalized section_label (trim + collapse spaces)
+  // so typos like "섹션3" vs "섹션 3" don't create separate cards
+  const normLabel = (l: string) => l.replace(/\s+/g, ' ').trim()
+  const sectionOrder: string[] = []
+  const sectionQMap = new Map<string, Question[]>()
+  const sectionLabelMap = new Map<string, string>()
   for (const q of questions) {
-    const last = sections[sections.length - 1]
-    if (last && last.label === q.section_label) {
-      last.questions.push(q)
-    } else {
-      sections.push({ label: q.section_label, questions: [q] })
+    const key = normLabel(q.section_label)
+    if (!sectionQMap.has(key)) {
+      sectionOrder.push(key)
+      sectionQMap.set(key, [])
+      sectionLabelMap.set(key, q.section_label)
     }
+    sectionQMap.get(key)!.push(q)
   }
+  const sections = sectionOrder.map(key => ({ label: sectionLabelMap.get(key)!, questions: sectionQMap.get(key)! }))
 
   // Global question index for Q numbering
   let globalIndex = 0
