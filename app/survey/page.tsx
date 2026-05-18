@@ -389,7 +389,7 @@ function ConditionalInput({
 
   const renderBranchQ = (bq: BranchQuestion, opt: string) => {
     const answers = condVal.branch_answers?.[opt] ?? {}
-    const val = answers[bq.id] ?? null
+    const val = condVal.branch_answers?.[opt]?.[bq.id] ?? null
 
     if (bq.type === 'text') return (
       <input type="text" placeholder="직접 입력해 주세요"
