@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType, BranchQuestion } from '@/lib/types'
 
 // ── Excel export ──────────────────────────────────────────────────────────────
@@ -414,6 +414,16 @@ function BranchQEditor({
   onRemove: () => void
 }) {
   const opts = bq.options ?? []
+  const bqDragRef = useRef<number | null>(null)
+  const [bqOverIdx, setBqOverIdx] = useState<number | null>(null)
+
+  const reorderBqOpts = (from: number, to: number) => {
+    const next = [...opts]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onChange({ options: next })
+  }
+
   return (
     <div className="bg-white border-2 border-gray-100 rounded-xl p-3 mb-2 space-y-2">
       <div className="flex items-start gap-2">
@@ -443,7 +453,22 @@ function BranchQEditor({
       {(bq.type === 'radio' || bq.type === 'checkbox') && (
         <div className="space-y-1 pl-1">
           {opts.map((opt, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={i}
+              className={`flex items-center gap-2 rounded-lg transition-colors ${bqOverIdx === i ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+              onDragOver={e => { e.preventDefault(); setBqOverIdx(i) }}
+              onDragLeave={() => setBqOverIdx(null)}
+              onDrop={e => {
+                e.preventDefault()
+                if (bqDragRef.current !== null && bqDragRef.current !== i) reorderBqOpts(bqDragRef.current, i)
+                bqDragRef.current = null; setBqOverIdx(null)
+              }}
+            >
+              <span
+                draggable
+                onDragStart={e => { bqDragRef.current = i; e.dataTransfer.effectAllowed = 'move' }}
+                onDragEnd={() => { bqDragRef.current = null; setBqOverIdx(null) }}
+                className="cursor-grab text-gray-300 hover:text-gray-500 select-none px-0.5 text-lg leading-none"
+              >⠿</span>
               <input
                 value={opt}
                 onChange={e => { const a = [...opts]; a[i] = e.target.value; onChange({ options: a }) }}
@@ -532,6 +557,38 @@ function QuestionEditModal({
 
   const strOptions = draft.options as string[]
   const matrixOptions = draft.options as MatrixItem[]
+
+  const dragRef = useRef<{ listId: string; idx: number } | null>(null)
+  const [overKey, setOverKey] = useState<string | null>(null)
+
+  const reorderArr = <T,>(arr: T[], from: number, to: number): T[] => {
+    const next = [...arr]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    return next
+  }
+
+  const makeDrag = (listId: string, idx: number) => ({
+    draggable: true as const,
+    onDragStart: (e: React.DragEvent) => {
+      dragRef.current = { listId, idx }
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    onDragEnd: () => { dragRef.current = null; setOverKey(null) },
+  })
+
+  const makeDropTarget = (listId: string, idx: number, reorderFn: (a: number, b: number) => void) => ({
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setOverKey(`${listId}_${idx}`) },
+    onDragLeave: () => setOverKey(null),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      const from = dragRef.current
+      if (from && from.listId === listId && from.idx !== idx) reorderFn(from.idx, idx)
+      dragRef.current = null; setOverKey(null)
+    },
+  })
+
+  const isDragOver = (listId: string, idx: number) => overKey === `${listId}_${idx}`
 
   return (
     <div
@@ -666,7 +723,11 @@ function QuestionEditModal({
             <div className="space-y-3">
               <label className="block text-xs font-semibold text-gray-600">선택지</label>
               {strOptions.map((opt, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i}
+                  className={`flex items-center gap-2 rounded-lg transition-colors ${isDragOver('strOpts', i) ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+                  {...makeDropTarget('strOpts', i, (a, b) => set('options', reorderArr(strOptions, a, b)))}
+                >
+                  <span {...makeDrag('strOpts', i)} className="cursor-grab text-gray-300 hover:text-gray-500 select-none px-1 text-lg leading-none">⠿</span>
                   <input
                     value={opt}
                     onChange={e => {
@@ -726,7 +787,11 @@ function QuestionEditModal({
               </div>
               <label className="block text-xs font-semibold text-gray-600">항목 (key + 레이블)</label>
               {matrixOptions.map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i}
+                  className={`flex items-center gap-2 rounded-lg transition-colors ${isDragOver('matrixOpts', i) ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+                  {...makeDropTarget('matrixOpts', i, (a, b) => set('options', reorderArr(matrixOptions, a, b)))}
+                >
+                  <span {...makeDrag('matrixOpts', i)} className="cursor-grab text-gray-300 hover:text-gray-500 select-none px-1 text-lg leading-none">⠿</span>
                   <input
                     value={item.key}
                     onChange={e => {
@@ -798,6 +863,7 @@ function QuestionEditModal({
             const renderBranchSection = (opt: string, displayLabel?: string) => {
               if (!opt.trim()) return null
               const bqs = branches[opt] ?? []
+              const listId = `branch_${opt}`
               return (
                 <div className="mt-1 mb-3 ml-3 border-l-2 border-blue-200 pl-3">
                   <div className="flex items-center justify-between mb-1">
@@ -813,10 +879,23 @@ function QuestionEditModal({
                     <p className="text-xs text-gray-400 italic py-1">추가 질문 없음</p>
                   ) : (
                     bqs.map((bq, bi) => (
-                      <BranchQEditor key={bq.id} bq={bq}
-                        onChange={patch => updateBranchQ(opt, bi, patch)}
-                        onRemove={() => removeBranchQ(opt, bi)}
-                      />
+                      <div key={bq.id}
+                        className={`rounded-xl transition-colors ${isDragOver(listId, bi) ? 'ring-2 ring-blue-300 bg-blue-50' : ''}`}
+                        {...makeDropTarget(listId, bi, (a, b) => {
+                          const reordered = reorderArr(bqs, a, b)
+                          setBranches({ ...branches, [opt]: reordered })
+                        })}
+                      >
+                        <div className="flex items-start gap-1">
+                          <span {...makeDrag(listId, bi)} className="cursor-grab text-gray-300 hover:text-gray-500 select-none pt-3 px-1 text-lg leading-none flex-shrink-0">⠿</span>
+                          <div className="flex-1">
+                            <BranchQEditor bq={bq}
+                              onChange={patch => updateBranchQ(opt, bi, patch)}
+                              onRemove={() => removeBranchQ(opt, bi)}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     ))
                   )}
                 </div>
@@ -829,8 +908,15 @@ function QuestionEditModal({
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">선택지</label>
                   {mainOpts.map((opt, i) => (
-                    <div key={i}>
+                    <div key={i}
+                      className={`rounded-lg transition-colors ${isDragOver('mainOpts', i) ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+                      {...makeDropTarget('mainOpts', i, (a, b) => {
+                        const arr = reorderArr(mainOpts, a, b)
+                        setDraft(p => ({ ...p, config: { ...p.config, trigger_options: arr } }))
+                      })}
+                    >
                       <div className="flex items-center gap-2 mb-1">
+                        <span {...makeDrag('mainOpts', i)} className="cursor-grab text-gray-300 hover:text-gray-500 select-none px-1 text-lg leading-none">⠿</span>
                         <input
                           value={opt}
                           onChange={e => {
