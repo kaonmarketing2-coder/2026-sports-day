@@ -3,6 +3,58 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Question, SurveyResponseRow, SurveyAnswers, AnswerValue, MatrixItem, ConditionalAnswer, QuestionType } from '@/lib/types'
 
+// ── Excel export ──────────────────────────────────────────────────────────────
+
+function flattenAnswer(q: Question, r: SurveyResponseRow): string {
+  const val = r.answers[q.id]
+  if (val === null || val === undefined) return ''
+  if (q.question_type === 'scale') return String(val)
+  if (q.question_type === 'text' || q.question_type === 'textarea') return String(val)
+  if (q.question_type === 'radio') {
+    const s = val as string
+    if (s === '기타') {
+      const other = r.answers[q.id + '__other'] as string | undefined
+      return other ? `기타: ${other}` : '기타'
+    }
+    return s
+  }
+  if (q.question_type === 'checkbox') {
+    const arr = val as string[]
+    const other = r.answers[q.id + '__other'] as string | undefined
+    return arr.map(s => (s === '기타' && other) ? `기타: ${other}` : s).join(', ')
+  }
+  if (q.question_type === 'matrix') {
+    const items = q.options as MatrixItem[]
+    const map = val as Record<string, number>
+    return items.map(it => `${it.label}: ${map[it.key] ?? ''}`).join(' / ')
+  }
+  if (q.question_type === 'conditional') {
+    const cv = val as ConditionalAnswer
+    if (cv.used === null) return ''
+    if (!cv.used) return '이용 안 함'
+    return `이용함 (만족도: ${cv.satisfaction ?? ''}, 존: ${(cv.zones ?? []).join('/')})`
+  }
+  if (q.question_type === 'photo') {
+    return Array.isArray(val) ? (val as string[]).join('\n') : ''
+  }
+  return String(val)
+}
+
+async function exportToExcel(questions: Question[], responses: SurveyResponseRow[]) {
+  const { utils, writeFile } = await import('xlsx')
+
+  const headers = ['제출시간', ...questions.map((q, i) => `Q${i + 1}. ${q.question_text}`)]
+  const rows = responses.map(r => [
+    new Date(r.created_at).toLocaleString('ko-KR'),
+    ...questions.map(q => flattenAnswer(q, r)),
+  ])
+
+  const ws = utils.aoa_to_sheet([headers, ...rows])
+  const wb = utils.book_new()
+  utils.book_append_sheet(wb, ws, '설문 응답')
+  writeFile(wb, `KAON_체육대회_설문_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.xlsx`)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function avgOfScores(responses: SurveyResponseRow[], qid: string): number {
@@ -141,6 +193,10 @@ function ResponseModal({
       const zones = cv.zones?.join('/') ?? ''
       return `이용함 (만족도: ${cv.satisfaction ?? '-'}, ${zones})`
     }
+    if (q.question_type === 'photo') {
+      const urls = Array.isArray(val) ? (val as string[]) : []
+      return urls.length ? `${urls.length}장 업로드됨` : '-'
+    }
     return String(val)
   }
 
@@ -162,13 +218,36 @@ function ResponseModal({
           </button>
         </div>
         <div className="px-6 py-4 text-sm space-y-3">
-          {questions.map((q, i) => (
-            <Row
-              key={q.id}
-              label={`Q${i + 1} ${q.question_text.slice(0, 30)}${q.question_text.length > 30 ? '…' : ''}`}
-              value={formatAnswer(q, r.answers[q.id] ?? null)}
-            />
-          ))}
+          {questions.map((q, i) => {
+            const label = `Q${i + 1} ${q.question_text.slice(0, 30)}${q.question_text.length > 30 ? '…' : ''}`
+            if (q.question_type === 'photo') {
+              const urls = Array.isArray(r.answers[q.id]) ? (r.answers[q.id] as string[]) : []
+              return (
+                <div key={q.id}>
+                  <span className="text-gray-400 block mb-1">{label}</span>
+                  {urls.length === 0 ? (
+                    <span className="text-gray-500">-</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {urls.map((url, j) => (
+                        <a key={j} href={url} target="_blank" rel="noopener noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`사진 ${j + 1}`} className="w-20 h-20 object-cover rounded-xl border border-gray-200 hover:opacity-80 transition" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
+              <Row
+                key={q.id}
+                label={label}
+                value={formatAnswer(q, r.answers[q.id] ?? null)}
+              />
+            )
+          })}
         </div>
       </div>
     </div>
@@ -185,6 +264,7 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   checkbox: '복수선택 (Checkbox)',
   matrix: '매트릭스 (Matrix)',
   conditional: '조건부 (Conditional)',
+  photo: '사진 업로드 (Photo)',
 }
 
 type QuestionDraft = {
@@ -197,6 +277,8 @@ type QuestionDraft = {
     labels?: string[]
     required?: boolean
     max?: number
+    max_files?: number
+    max_mb?: number
     trigger_options?: string[]
     satisfaction_labels?: string[]
     zones?: string[]
@@ -257,6 +339,7 @@ function QuestionEditModal({
         satisfaction_labels: ['불만족', '보통', '만족'],
         zones: [],
       }
+    else if (t === 'photo') defaults.config = { max_files: 5, max_mb: 10 }
     else defaults.config = {}
     setDraft(prev => ({ ...prev, ...defaults }))
   }
@@ -633,6 +716,36 @@ function QuestionEditModal({
             </div>
           )}
 
+          {/* photo-specific */}
+          {draft.question_type === 'photo' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">최대 사진 수</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={draft.config.max_files ?? 5}
+                    onChange={e => setConfig('max_files', Number(e.target.value))}
+                    className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">최대 파일 크기 (MB)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={draft.config.max_mb ?? 10}
+                    onChange={e => setConfig('max_mb', Number(e.target.value))}
+                    className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {err && <p className="text-red-500 text-xs">{err}</p>}
         </div>
 
@@ -811,6 +924,30 @@ function StatsTab({
                   })}
                 </div>
               )}
+            </Card>
+          )
+        }
+
+        // photo
+        if (q.question_type === 'photo') {
+          const allUrls = responses.flatMap(r =>
+            Array.isArray(r.answers[q.id]) ? (r.answers[q.id] as string[]) : []
+          )
+          return (
+            <Card key={q.id} title={qLabel}>
+              <div className="text-xs text-gray-500 mb-2">총 {allUrls.length}장 업로드됨</div>
+              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+                {allUrls.length === 0 ? (
+                  <p className="text-gray-400 text-xs">업로드된 사진 없음</p>
+                ) : (
+                  allUrls.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`사진 ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition" />
+                    </a>
+                  ))
+                )}
+              </div>
             </Card>
           )
         }
@@ -1181,62 +1318,90 @@ export default function AdminPage() {
         ) : activeTab === 'summary' ? (
           <StatsTab responses={responses} questions={questions} />
         ) : activeTab === 'list' ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {responses.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-sm">응답이 없습니다.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead style={{ background: '#f8fafc' }}>
-                    <tr>
-                      <th className="text-left px-4 py-3 text-gray-500 font-semibold">제출 시간</th>
-                      {questions.slice(0, 3).map((q, i) => (
-                        <th key={q.id} className="text-left px-4 py-3 text-gray-500 font-semibold">
-                          Q{i + 1}
-                        </th>
-                      ))}
-                      <th className="text-center px-4 py-3 text-gray-500 font-semibold">상세</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {responses.map((r, idx) => (
-                      <tr key={r.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                        <td className="px-4 py-3 text-gray-500">
-                          {new Date(r.created_at).toLocaleString('ko-KR', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        {questions.slice(0, 3).map(q => {
-                          const v = r.answers[q.id]
-                          const display =
-                            v === null || v === undefined
-                              ? '-'
-                              : Array.isArray(v)
-                              ? (v as string[]).join(', ').slice(0, 30)
-                              : String(v).slice(0, 30)
-                          return (
-                            <td key={q.id} className="px-4 py-3 text-gray-600 max-w-[120px] truncate">
-                              {display}
-                            </td>
-                          )
-                        })}
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => setSelected(r)}
-                            className="bg-blue-50 text-blue-700 font-semibold px-3 py-1 rounded-lg hover:bg-blue-100 transition"
-                          >
-                            보기
-                          </button>
-                        </td>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-gray-500 font-semibold">총 {responses.length}개 응답</span>
+              <button
+                onClick={() => exportToExcel(questions, responses)}
+                disabled={responses.length === 0}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+              >
+                📥 엑셀 다운로드
+              </button>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {responses.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 text-sm">응답이 없습니다.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead style={{ background: '#f8fafc' }}>
+                      <tr>
+                        <th className="text-left px-4 py-3 text-gray-500 font-semibold">제출 시간</th>
+                        {questions.slice(0, 3).map((q, i) => (
+                          <th key={q.id} className="text-left px-4 py-3 text-gray-500 font-semibold">
+                            Q{i + 1}
+                          </th>
+                        ))}
+                        <th className="text-center px-4 py-3 text-gray-500 font-semibold">상세</th>
+                        <th className="text-center px-4 py-3 text-gray-500 font-semibold">삭제</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {responses.map((r, idx) => (
+                        <tr key={r.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                          <td className="px-4 py-3 text-gray-500">
+                            {new Date(r.created_at).toLocaleString('ko-KR', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          {questions.slice(0, 3).map(q => {
+                            const v = r.answers[q.id]
+                            const display =
+                              v === null || v === undefined
+                                ? '-'
+                                : Array.isArray(v)
+                                ? (v as string[]).join(', ').slice(0, 30)
+                                : String(v).slice(0, 30)
+                            return (
+                              <td key={q.id} className="px-4 py-3 text-gray-600 max-w-[120px] truncate">
+                                {display}
+                              </td>
+                            )
+                          })}
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => setSelected(r)}
+                              className="bg-blue-50 text-blue-700 font-semibold px-3 py-1 rounded-lg hover:bg-blue-100 transition"
+                            >
+                              보기
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={async () => {
+                                if (!confirm('이 응답을 삭제하시겠습니까? 되돌릴 수 없습니다.')) return
+                                const res = await fetch(`/api/responses/${r.id}`, {
+                                  method: 'DELETE',
+                                  headers: { 'x-admin-password': storedPwd },
+                                })
+                                if (res.ok) fetchAll(storedPwd)
+                              }}
+                              className="bg-red-50 text-red-500 font-semibold px-3 py-1 rounded-lg hover:bg-red-100 transition"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <QuestionsTab

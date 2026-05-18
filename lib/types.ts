@@ -6,6 +6,7 @@ export type QuestionType =
   | 'checkbox'
   | 'matrix'
   | 'conditional'
+  | 'photo'
 
 export type MatrixItem = {
   key: string
@@ -17,6 +18,8 @@ export type QuestionConfig = {
   labels?: string[]
   required?: boolean
   max?: number
+  max_files?: number
+  max_mb?: number
   trigger_options?: string[]
   satisfaction_labels?: string[]
   zones?: string[]

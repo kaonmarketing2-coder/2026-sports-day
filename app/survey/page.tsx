@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Question, AnswerValue, SurveyAnswers, MatrixItem, ConditionalAnswer } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 // ── Question renderers ────────────────────────────────────────────────────────
 
@@ -352,6 +353,115 @@ function ConditionalInput({
   )
 }
 
+function PhotoInput({
+  question,
+  value,
+  onChange,
+}: {
+  question: Question
+  value: AnswerValue
+  onChange: (v: string[]) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const urls = Array.isArray(value) ? (value as string[]) : []
+  const maxFiles = question.config.max_files ?? 5
+  const maxMb = question.config.max_mb ?? 10
+
+  const handleFiles = async (files: File[]) => {
+    if (!files.length) return
+    if (urls.length + files.length > maxFiles) {
+      setUploadError(`최대 ${maxFiles}장까지 업로드할 수 있습니다.`)
+      return
+    }
+    setUploading(true)
+    setUploadError('')
+    try {
+      const newUrls: string[] = []
+      for (const file of files) {
+        if (file.size > maxMb * 1024 * 1024) {
+          setUploadError(`${maxMb}MB 이하 파일만 업로드 가능합니다.`)
+          continue
+        }
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { data, error } = await supabase.storage
+          .from('survey-photos')
+          .upload(filename, file, { upsert: false })
+        if (error) throw error
+        const { data: { publicUrl } } = supabase.storage
+          .from('survey-photos')
+          .getPublicUrl(data.path)
+        newUrls.push(publicUrl)
+      }
+      onChange([...urls, ...newUrls])
+    } catch {
+      setUploadError('업로드 중 오류가 발생했습니다. 다시 시도해 주세요.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {urls.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {urls.map((url, i) => (
+            <div key={i} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`사진 ${i + 1}`}
+                className="w-24 h-24 object-cover rounded-xl border-2 border-blue-200"
+              />
+              <button
+                type="button"
+                onClick={() => onChange(urls.filter((_, j) => j !== i))}
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {urls.length < maxFiles && (
+        <label
+          className={`flex items-center gap-4 p-4 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+            uploading
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+              : 'border-blue-300 hover:border-blue-500 hover:bg-blue-50'
+          }`}
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={e => handleFiles(Array.from(e.target.files ?? []))}
+            disabled={uploading}
+            className="hidden"
+          />
+          <span className="text-3xl">{uploading ? '⏳' : '📷'}</span>
+          <div>
+            <div className="text-sm font-semibold text-gray-700">
+              {uploading ? '업로드 중...' : '사진 선택하기'}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              최대 {maxFiles}장 · 장당 {maxMb}MB 이하 · JPG, PNG, WEBP
+            </div>
+          </div>
+        </label>
+      )}
+
+      {uploadError && <p className="text-red-500 text-xs font-medium">{uploadError}</p>}
+    </div>
+  )
+}
+
 // ── Layout components ─────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
@@ -534,6 +644,14 @@ export default function SurveyPage() {
     } else if (q.question_type === 'conditional') {
       input = (
         <ConditionalInput
+          question={q}
+          value={val}
+          onChange={v => setAnswer(q.id, v)}
+        />
+      )
+    } else if (q.question_type === 'photo') {
+      input = (
+        <PhotoInput
           question={q}
           value={val}
           onChange={v => setAnswer(q.id, v)}
