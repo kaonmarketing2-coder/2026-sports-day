@@ -433,8 +433,17 @@ function ConditionalInput({
         const next = arr.includes(o) ? arr.filter(x => x !== o) : [...arr, o]
         updateBranchAnswer(opt, bq.id, next)
       } else {
-        updateBranchAnswer(opt, bq.id, bqSel === o ? null : o)
-        if (bqSel !== o) updateBranchOther(opt, bq.id, '')
+        // Combine selection + clearing other_text into one onChange call.
+        // Two sequential calls would both read from the same stale condVal
+        // and the second would overwrite the first, losing the selection.
+        const newVal = bqSel === o ? null : o
+        const optAns = condVal.branch_answers?.[opt] ?? {}
+        const newOptAns: Record<string, AnswerValue> = { ...optAns, [bq.id]: newVal }
+        if (bqSel !== o) newOptAns[bq.id + '__other'] = ''
+        onChange({
+          ...condVal,
+          branch_answers: { ...(condVal.branch_answers ?? {}), [opt]: newOptAns },
+        })
       }
     }
 
