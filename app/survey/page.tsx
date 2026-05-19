@@ -693,14 +693,13 @@ export default function SurveyPage() {
       } else if (q.question_type === 'conditional') {
         const condVal = val as ConditionalAnswer | null | undefined
         if (!condVal) return `${q.question_text} 항목을 선택해 주세요.`
-        const isLegacy = !q.config.sub && q.config.trigger_values === undefined && q.config.satisfaction_labels !== undefined
-        if (isLegacy) {
-          if (condVal.used === null || condVal.used === undefined) return `${q.question_text} 항목을 선택해 주세요.`
-        } else {
-          const sel = condVal.selected
-          if (sel === null || sel === undefined || (Array.isArray(sel) && sel.length === 0))
-            return `${q.question_text} 항목을 선택해 주세요.`
-        }
+        // Use same legacy detection as ConditionalInput (option_branches, not sub)
+        const isLegacy = !q.config.option_branches && q.config.trigger_values === undefined && q.config.satisfaction_labels !== undefined
+        const isAnswered = isLegacy
+          ? (condVal.used !== null && condVal.used !== undefined)
+          : (condVal.selected !== null && condVal.selected !== undefined &&
+             !(Array.isArray(condVal.selected) && condVal.selected.length === 0))
+        if (!isAnswered) return `${q.question_text} 항목을 선택해 주세요.`
       }
     }
     return ''
