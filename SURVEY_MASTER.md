@@ -131,7 +131,7 @@ values
   option_branches: {             // 선택지별 하위 질문
     '이용함': [
       {
-        id: 'bq_unique_id',
+        id: 'bq_unique_id',       // ⚠️ 반드시 문항마다 고유해야 함
         text: '만족도를 선택해 주세요.',
         type: 'scale',           // text | textarea | radio | checkbox | scale
         scale_size: 5,
@@ -158,6 +158,21 @@ values
 
 // options 필드는 빈 배열로 설정
 options: []
+```
+
+### matrix 유형 주의사항
+
+```ts
+// ⚠️ 각 항목의 key는 반드시 고유해야 합니다.
+// key가 중복되면 한 셀을 클릭할 때 같은 key를 가진 모든 행이 동시에 선택됩니다.
+options: [
+  { key: 'item_a', label: '항목 A' },  // ✅ 고유한 key
+  { key: 'item_b', label: '항목 B' },
+  { key: 'item_c', label: '항목 C' },
+  // ❌ 잘못된 예: { key: 'item', label: 'A' }, { key: 'item', label: 'B' }
+]
+// 관리자 페이지에서 항목 추가 시 key는 자동 생성됩니다.
+// seed-questions.ts로 직접 작성할 때는 위처럼 고유 key를 직접 지정하세요.
 ```
 
 ---
@@ -272,8 +287,8 @@ export const DEFAULT_QUESTIONS: Omit<Question, 'id' | 'created_at'>[] = [
     question_text: '각 프로그램의 만족도를 선택해 주세요.',
     question_type: 'matrix',
     options: [
-      { key: 'a', label: '프로그램A' },
-      { key: 'b', label: '프로그램B' },
+      { key: 'prog_a', label: '프로그램A' },  // ⚠️ key는 반드시 고유하게
+      { key: 'prog_b', label: '프로그램B' },
     ] as MatrixItem[],
     config: { size: 5 },
     is_active: true,
@@ -304,7 +319,7 @@ export const DEFAULT_QUESTIONS: Omit<Question, 'id' | 'created_at'>[] = [
       option_branches: {
         '이용함': [
           {
-            id: 'bq_booth_reason',
+            id: 'bq_booth_reason',           // ⚠️ 전체 문항 내에서 고유해야 함
             text: '이용한 이유는 무엇인가요?',
             type: 'radio',
             options: ['재미있어서', '이벤트 때문에', '친구 권유로'],
@@ -335,6 +350,7 @@ export const DEFAULT_QUESTIONS: Omit<Question, 'id' | 'created_at'>[] = [
 - **비밀번호**: `ADMIN_PASSWORD` 환경 변수
 - **기능**:
   - 문항 추가 / 수정 / 삭제 / 순서 변경 (드래그)
+  - 선택지 순서 드래그 변경 (radio, checkbox, matrix, conditional 모두)
   - 문항 활성/비활성 토글
   - 응답 목록 조회 및 개별 응답 상세 보기
   - 응답 삭제
@@ -391,3 +407,47 @@ export const DEFAULT_QUESTIONS: Omit<Question, 'id' | 'created_at'>[] = [
 4. **조건부 문항은 선택지별 독립 분기** — `option_branches[optionValue][branchQuestionIndex]` 구조
 5. **관리자 인증은 헤더 기반** — `x-admin-password` 헤더로 API 보호 (Supabase RLS는 공개 읽기 허용)
 6. **드래그로 순서 변경** — 문항 목록과 선택지 순서 모두 HTML5 native DnD로 변경 가능
+7. **레거시 판별은 `option_branches` 유무로** — ConditionalInput과 validate 양쪽에서 동일한 조건 사용 필수
+
+---
+
+## 10. 알려진 주의사항 (구현 시 반드시 지킬 것)
+
+### ⚠️ matrix — key 중복 금지
+
+`options` 배열의 각 항목 `key`가 같으면 클릭 시 모든 행이 동시에 선택됩니다.  
+seed-questions.ts에서 직접 작성할 때는 반드시 항목마다 고유한 `key`를 부여하세요.  
+관리자 UI에서 추가하면 타임스탬프 기반으로 자동 생성됩니다.
+
+```ts
+// ✅ 올바른 예
+{ key: 'food_chicken', label: '닭강정' }
+{ key: 'food_tteok',   label: '떡볶이' }
+
+// ❌ 잘못된 예 — 모든 행이 같은 값으로 눌림
+{ key: 'food', label: '닭강정' }
+{ key: 'food', label: '떡볶이' }
+```
+
+### ⚠️ conditional — 레거시 판별 조건 통일
+
+`ConditionalInput`(렌더링)과 `validate`(제출 검증) 양쪽에서 레거시 판별에 **동일한 조건**을 사용해야 합니다.
+
+- 기준: `!config.option_branches && config.satisfaction_labels !== undefined` → 레거시
+- 두 곳이 다른 조건을 쓰면, 화면에서는 `selected`에 저장했는데 검증은 `used`를 체크해 "미응답"으로 처리됩니다.
+
+### ⚠️ conditional 하위 문항 — 단일 onChange 호출
+
+라디오 타입 하위 문항에서 선택값 저장과 기타 텍스트 초기화를 **별도 onChange 두 번** 호출하면 두 번째 호출이 첫 번째를 덮어씁니다 (같은 stale closure 참조).  
+반드시 하나의 `onChange` 호출에 두 변경을 합쳐서 처리하세요.
+
+```ts
+// ✅ 올바른 예 — 하나의 onChange로 합쳐서 처리
+const newOptAns = { ...optAns, [bq.id]: newVal }
+if (clearing) newOptAns[bq.id + '__other'] = ''
+onChange({ ...condVal, branch_answers: { ...condVal.branch_answers, [opt]: newOptAns } })
+
+// ❌ 잘못된 예 — 두 번째 호출이 첫 번째를 덮어씀
+updateBranchAnswer(opt, bq.id, newVal)
+updateBranchOther(opt, bq.id, '')   // stale condVal 기반으로 덮어씀
+```
