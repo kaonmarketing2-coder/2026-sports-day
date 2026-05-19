@@ -785,7 +785,7 @@ function QuestionEditModal({
                   className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <label className="block text-xs font-semibold text-gray-600">항목 (key + 레이블)</label>
+              <label className="block text-xs font-semibold text-gray-600">항목</label>
               {matrixOptions.map((item, i) => (
                 <div key={i}
                   className={`flex items-center gap-2 rounded-lg transition-colors ${isDragOver('matrixOpts', i) ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
@@ -793,21 +793,14 @@ function QuestionEditModal({
                 >
                   <span {...makeDrag('matrixOpts', i)} className="cursor-grab text-gray-300 hover:text-gray-500 select-none px-1 text-lg leading-none">⠿</span>
                   <input
-                    value={item.key}
-                    onChange={e => {
-                      const opts = matrixOptions.map((o, j) => j === i ? { ...o, key: e.target.value } : o)
-                      set('options', opts)
-                    }}
-                    placeholder="key"
-                    className="w-24 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                  <input
                     value={item.label}
                     onChange={e => {
-                      const opts = matrixOptions.map((o, j) => j === i ? { ...o, label: e.target.value } : o)
+                      const opts = matrixOptions.map((o, j) =>
+                        j === i ? { key: o.key || `mk_${Date.now()}_${i}`, label: e.target.value } : o
+                      )
                       set('options', opts)
                     }}
-                    placeholder="레이블"
+                    placeholder="항목 이름"
                     className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
                   />
                   <button
@@ -821,7 +814,7 @@ function QuestionEditModal({
               ))}
               <button
                 type="button"
-                onClick={() => set('options', [...matrixOptions, { key: '', label: '' }])}
+                onClick={() => set('options', [...matrixOptions, { key: `mk_${Date.now()}_${matrixOptions.length}`, label: '' }])}
                 className="text-blue-600 text-xs font-semibold hover:underline"
               >
                 + 항목 추가

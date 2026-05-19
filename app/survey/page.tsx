@@ -208,9 +208,14 @@ function MatrixInput({
 }) {
   const items = (question.options as MatrixItem[]) ?? []
   const size = question.config.size ?? 5
-  const mapVal = (value && typeof value === 'object' && !Array.isArray(value) && !(value as ConditionalAnswer).used !== undefined)
-    ? (value as Record<string, number>)
-    : {}
+  // key가 비어있는 항목은 label을 fallback key로, 그것도 비어있으면 index 사용
+  const resolveKey = (item: MatrixItem, idx: number) =>
+    item.key || item.label || String(idx)
+
+  const mapVal =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, number>)
+      : {}
 
   const setItem = (key: string, n: number) => {
     onChange({ ...mapVal, [key]: n })
@@ -225,29 +230,32 @@ function MatrixInput({
           </div>
         ))}
       </div>
-      {items.map(item => (
-        <div key={item.key} className="flex items-center gap-2 mb-2">
-          <div className="w-[140px] sm:w-[180px] text-xs text-gray-700 font-medium flex-shrink-0 leading-tight">
-            {item.label}
+      {items.map((item, idx) => {
+        const rk = resolveKey(item, idx)
+        return (
+          <div key={rk} className="flex items-center gap-2 mb-2">
+            <div className="w-[140px] sm:w-[180px] text-xs text-gray-700 font-medium flex-shrink-0 leading-tight">
+              {item.label}
+            </div>
+            <div className="flex gap-1 flex-1">
+              {Array.from({ length: size }, (_, i) => i + 1).map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setItem(rk, n)}
+                  className={`flex-1 h-9 rounded-lg border-2 text-xs font-bold transition-all ${
+                    mapVal[rk] === n
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-blue-300'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1 flex-1">
-            {Array.from({ length: size }, (_, i) => i + 1).map(n => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setItem(item.key, n)}
-                className={`flex-1 h-9 rounded-lg border-2 text-xs font-bold transition-all ${
-                  mapVal[item.key] === n
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-gray-200 bg-white text-gray-500 hover:border-blue-300'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
