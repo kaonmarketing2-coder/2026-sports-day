@@ -1243,6 +1243,103 @@ function StatsTab({
   )
 }
 
+// ── Groups management tab ─────────────────────────────────────────────────────
+
+type Group = { id: string; name: string; created_at: string }
+
+function GroupsTab({ storedPwd }: { storedPwd: string }) {
+  const [groups, setGroups] = useState<Group[]>([])
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    fetch('/api/groups')
+      .then(r => r.json())
+      .then(json => {
+        const data: Group[] = json.data ?? []
+        setGroups(data)
+        const init: Record<string, string> = {}
+        data.forEach(g => { init[g.id] = g.name })
+        setDrafts(init)
+      })
+  }, [])
+
+  const handleSave = async (id: string) => {
+    const name = drafts[id] ?? ''
+    if (!name.trim()) {
+      setErrors(prev => ({ ...prev, [id]: '조 이름을 입력해 주세요' }))
+      return
+    }
+    setSaving(prev => ({ ...prev, [id]: true }))
+    setErrors(prev => ({ ...prev, [id]: '' }))
+    setSaved(prev => ({ ...prev, [id]: false }))
+
+    const res = await fetch(`/api/groups/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': storedPwd },
+      body: JSON.stringify({ name }),
+    })
+    const json = await res.json()
+    setSaving(prev => ({ ...prev, [id]: false }))
+
+    if (!res.ok) {
+      setErrors(prev => ({ ...prev, [id]: json.error ?? '저장 실패' }))
+      return
+    }
+    setGroups(prev => prev.map(g => g.id === id ? { ...g, name: json.data.name } : g))
+    setDrafts(prev => ({ ...prev, [id]: json.data.name }))
+    setSaved(prev => ({ ...prev, [id]: true }))
+    setTimeout(() => setSaved(prev => ({ ...prev, [id]: false })), 2000)
+  }
+
+  return (
+    <div>
+      <div className="mb-4">
+        <p className="text-sm text-gray-500">조 이름을 수정하면 모든 페이지에 즉시 반영됩니다.</p>
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {groups.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">조 데이터를 불러오는 중...</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {groups.map((g, idx) => (
+              <div key={g.id} className="px-4 py-3 flex items-center gap-3">
+                <span className="text-xs text-gray-400 font-bold w-6 flex-shrink-0">{idx + 1}</span>
+                <input
+                  value={drafts[g.id] ?? g.name}
+                  onChange={e => {
+                    setDrafts(prev => ({ ...prev, [g.id]: e.target.value }))
+                    setSaved(prev => ({ ...prev, [g.id]: false }))
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && handleSave(g.id)}
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {errors[g.id] && (
+                    <span className="text-xs text-red-500">{errors[g.id]}</span>
+                  )}
+                  {saved[g.id] && (
+                    <span className="text-xs text-green-600 font-semibold">저장됨 ✓</span>
+                  )}
+                  <button
+                    onClick={() => handleSave(g.id)}
+                    disabled={saving[g.id] || drafts[g.id] === g.name}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {saving[g.id] ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Question management tab ───────────────────────────────────────────────────
 
 function QuestionsTab({ storedPwd }: { storedPwd: string }) {
@@ -1459,7 +1556,7 @@ export default function AdminPage() {
   const [photoProgress, setPhotoProgress] = useState('')
 
   const [selected, setSelected] = useState<SurveyResponseRow | null>(null)
-  const [activeTab, setActiveTab] = useState<'summary' | 'list' | 'questions'>('summary')
+  const [activeTab, setActiveTab] = useState<'summary' | 'list' | 'questions' | 'groups'>('summary')
 
   const fetchAll = useCallback(async (pwd: string) => {
     setLoading(true)
@@ -1535,6 +1632,7 @@ export default function AdminPage() {
     { key: 'summary', label: '📊 통계 요약' },
     { key: 'list', label: '📋 응답 목록' },
     { key: 'questions', label: '📝 문항 관리' },
+    { key: 'groups', label: '👥 조 관리' },
   ] as const
 
   return (
@@ -1690,8 +1788,10 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'questions' ? (
           <QuestionsTab storedPwd={storedPwd} />
+        ) : (
+          <GroupsTab storedPwd={storedPwd} />
         )}
       </div>
     </div>
