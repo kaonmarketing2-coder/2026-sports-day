@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ "직원 수정" if mode=="edit" else "직원 추가" }} — 웰메이트{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6">
+<div class="page-title">{{ "✏️ 직원 정보 수정" if mode=="edit" else "👤 직원 추가" }}</div>
+<div class="card p-4">
+  <form method="POST">
+    <div class="row g-3">
+      <div class="col-6">
+        <label class="form-label fw-semibold">사번 <span class="text-danger">*</span></label>
+        <input type="text" name="사번" class="form-control" required
+               value="{{ emp.사번 if emp else '' }}" {{ "readonly" if mode=="edit" else "" }}>
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">이름 <span class="text-danger">*</span></label>
+        <input type="text" name="이름" class="form-control" required value="{{ emp.이름 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">직책</label>
+        <input type="text" name="직책" class="form-control" value="{{ emp.직책 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">소속</label>
+        <input type="text" name="소속" class="form-control" value="{{ emp.소속 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">본부</label>
+        <input type="text" name="본부" class="form-control" value="{{ emp.본부 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">그룹</label>
+        <input type="text" name="그룹" class="form-control" value="{{ emp.그룹 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">부서/팀</label>
+        <input type="text" name="부서팀" class="form-control" value="{{ emp.부서팀 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">파트</label>
+        <input type="text" name="파트" class="form-control" value="{{ emp.파트 if emp else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">입사일</label>
+        <input type="date" name="입사일" class="form-control" value="{{ emp.입사일 if emp else '' }}">
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-4">
+      <button type="submit" class="btn btn-primary px-4">저장</button>
+      <a href="/employees" class="btn btn-outline-secondary">취소</a>
+    </div>
+  </form>
+</div>
+</div>
+</div>
+{% endblock %}

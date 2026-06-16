@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}{{ "매칭 수정" if mode=="edit" else "매칭 등록" }} — 웰메이트{% endblock %}
+
+{% block head %}
+<style>
+  .info-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; font-size:.85rem; }
+  .info-label { color:#64748b; font-size:.75rem; }
+  .autofill-badge { font-size:.7rem; background:#dbeafe; color:#1e40af; border-radius:4px; padding:1px 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-7">
+
+<div class="page-title">{{ "✏️ 매칭 수정" if mode=="edit" else "➕ 웰메이트 매칭 등록" }}</div>
+
+<form method="POST" id="matchForm">
+
+  <!-- 웰메이트 (멘토) -->
+  <div class="card p-4 mb-3">
+    <h6 class="fw-bold mb-3">🧑‍💼 웰메이트 (멘토)</h6>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">이름 <span class="text-danger">*</span></label>
+      <input type="text" name="멘토_이름" id="mentorName" class="form-control"
+             value="{{ wm.멘토_이름 if wm else '' }}" placeholder="멘토 이름 입력" required>
+      <div id="mentorSuggestions" class="list-group mt-1" style="position:absolute;z-index:100;width:300px;display:none"></div>
+    </div>
+    <!-- 멘토 자동완성 정보 -->
+    <div class="info-box" id="mentorInfo" style="{{ 'display:none' if not wm else '' }}">
+      <div class="row g-2">
+        <div class="col-4"><div class="info-label">직책</div><div id="m_직책">-</div></div>
+        <div class="col-4"><div class="info-label">소속</div><div id="m_소속">-</div></div>
+        <div class="col-4"><div class="info-label">부서/팀</div><div id="m_부서팀">-</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 신규입사자 (멘티) -->
+  <div class="card p-4 mb-3">
+    <h6 class="fw-bold mb-3">🌱 신규입사자 (멘티) <span class="autofill-badge">사번 입력 시 자동완성</span></h6>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">사번</label>
+      <input type="text" name="멘티_사번" id="menteeSabun" class="form-control"
+             value="{{ wm.멘티_사번 if wm else '' }}" placeholder="예: k251101">
+    </div>
+    <!-- 멘티 자동완성 정보 -->
+    <div class="info-box" id="menteeInfo">
+      <div class="row g-2">
+        <div class="col-4"><div class="info-label">이름</div><div id="t_이름">-</div></div>
+        <div class="col-4"><div class="info-label">직책</div><div id="t_직책">-</div></div>
+        <div class="col-4"><div class="info-label">소속</div><div id="t_소속">-</div></div>
+        <div class="col-6"><div class="info-label">부서/팀</div><div id="t_부서팀">-</div></div>
+        <div class="col-6"><div class="info-label">입사일</div><div id="t_입사일">-</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 일정 -->
+  <div class="card p-4 mb-3">
+    <h6 class="fw-bold mb-3">📅 일정</h6>
+    <div class="row g-3">
+      <div class="col-6">
+        <label class="form-label fw-semibold">마감월</label>
+        <input type="date" name="마감월" class="form-control"
+               value="{{ wm.마감월 if wm else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">엔드서베이</label>
+        <input type="date" name="엔드서베이" class="form-control"
+               value="{{ wm.엔드서베이 if wm else '' }}">
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">재직확인</label>
+        <input type="text" name="재직확인" class="form-control"
+               value="{{ wm.재직확인 if wm else '' }}" placeholder="퇴사 시 '퇴사' 입력">
+        <div class="form-text">비워두면 재직 중으로 처리</div>
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">퇴사일</label>
+        <input type="date" name="퇴사일" class="form-control"
+               value="{{ wm.퇴사일 if wm else '' }}">
+      </div>
+    </div>
+  </div>
+
+  <!-- 메모 -->
+  <div class="card p-4 mb-4">
+    <h6 class="fw-bold mb-3">📝 메모</h6>
+    <textarea name="메모" class="form-control" rows="2"
+              placeholder="특이사항 등">{{ wm.메모 if wm else '' }}</textarea>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary px-4">저장</button>
+    <a href="/" class="btn btn-outline-secondary">취소</a>
+  </div>
+</form>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 멘티 사번 자동완성
+document.getElementById("menteeSabun").addEventListener("input", function() {
+  const sabun = this.value.trim();
+  if (sabun.length < 3) return;
+  fetch("/api/employee/" + sabun)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data) fillMentee(data);
+    });
+});
+
+function fillMentee(data) {
+  document.getElementById("t_이름").textContent   = data["이름"]   || "-";
+  document.getElementById("t_직책").textContent   = data["직책"]   || "-";
+  document.getElementById("t_소속").textContent   = data["소속"]   || "-";
+  document.getElementById("t_부서팀").textContent = data["부서팀"] || "-";
+  document.getElementById("t_입사일").textContent = data["입사일"] || "-";
+}
+
+// 멘토 이름 자동완성
+let mentorTimer;
+document.getElementById("mentorName").addEventListener("input", function() {
+  clearTimeout(mentorTimer);
+  const q = this.value.trim();
+  if (q.length < 1) { hideSuggestions(); return; }
+  mentorTimer = setTimeout(() => {
+    fetch("/api/search?q=" + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => showSuggestions(data));
+  }, 200);
+});
+
+function showSuggestions(list) {
+  const box = document.getElementById("mentorSuggestions");
+  if (!list.length) { hideSuggestions(); return; }
+  box.innerHTML = list.map(e =>
+    `<button type="button" class="list-group-item list-group-item-action py-1"
+      onclick="selectMentor('${e["이름"]}','${e["직책"]||""}','${e["소속"]||""}','${e["부서팀"]||""}')"
+    >${e["이름"]} <small class="text-muted">${e["직책"]||""} · ${e["소속"]||""}</small></button>`
+  ).join("");
+  box.style.display = "block";
+}
+
+function hideSuggestions() {
+  document.getElementById("mentorSuggestions").style.display = "none";
+}
+
+function selectMentor(이름, 직책, 소속, 부서팀) {
+  document.getElementById("mentorName").value = 이름;
+  document.getElementById("m_직책").textContent = 직책 || "-";
+  document.getElementById("m_소속").textContent = 소속 || "-";
+  document.getElementById("m_부서팀").textContent = 부서팀 || "-";
+  document.getElementById("mentorInfo").style.display = "block";
+  hideSuggestions();
+}
+
+document.addEventListener("click", function(e) {
+  if (!e.target.closest("#mentorName") && !e.target.closest("#mentorSuggestions")) hideSuggestions();
+});
+</script>
+{% endblock %}

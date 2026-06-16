@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}직원 DB — 웰메이트{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="page-title mb-0">👥 직원 DB</div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="/employees/export" class="btn btn-outline-success btn-sm">📤 엑셀 추출</a>
+    <a href="/employees/bulk-edit" class="btn btn-outline-warning btn-sm">🔄 벌크 수정</a>
+    <a href="/employees/import" class="btn btn-outline-primary btn-sm">📥 임포트</a>
+    <a href="/employees/add" class="btn btn-primary btn-sm">+ 직원 추가</a>
+  </div>
+</div>
+
+<form class="mb-3 d-flex gap-2" method="GET">
+  <input type="text" name="q" class="form-control form-control-sm" style="max-width:240px"
+         value="{{ q }}" placeholder="이름 또는 사번 검색">
+  <button class="btn btn-outline-secondary btn-sm">검색</button>
+  {% if q %}<a href="/employees" class="btn btn-outline-secondary btn-sm">초기화</a>{% endif %}
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>사번</th><th>이름</th><th>직책</th><th>소속</th><th>본부</th>
+          <th>부서/팀</th><th>파트</th><th>입사일</th><th style="width:130px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in employees %}
+        <tr>
+          <td class="text-muted small">{{ e.사번 }}</td>
+          <td><strong>{{ e.이름 }}</strong></td>
+          <td>{{ e.직책 or "-" }}</td>
+          <td>{{ e.소속 or "-" }}</td>
+          <td class="text-muted small">{{ e.본부 or "-" }}</td>
+          <td class="text-muted small">{{ e.부서팀 or "-" }}</td>
+          <td class="text-muted small">{{ e.파트 or "-" }}</td>
+          <td class="text-muted small">{{ e.입사일 or "-" }}</td>
+          <td style="white-space:nowrap">
+            <a href="/employees/edit/{{ e['사번'] }}" class="btn btn-outline-secondary btn-sm py-0">수정</a>
+            <button class="btn btn-outline-warning btn-sm py-0" onclick="showResign('{{ e['사번'] }}','{{ e['이름'] }}')">퇴사</button>
+            <form method="POST" action="/employees/delete/{{ e['사번'] }}" style="display:inline"
+                  onsubmit="return confirm('완전 삭제하시겠습니까?')">
+              <button class="btn btn-outline-danger btn-sm py-0">삭제</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">
+          직원 정보가 없습니다. <a href="/employees/import">엑셀에서 임포트</a>하거나 <a href="/employees/add">직접 추가</a>해주세요.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="text-muted mt-2" style="font-size:.8rem">총 {{ employees|length }}명</div>
+
+<!-- 퇴사 처리 모달 -->
+<div class="modal fade" id="resignModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">퇴사 처리</h6></div>
+      <form method="POST" id="resignForm">
+        <div class="modal-body">
+          <p id="resignName" class="fw-bold mb-2"></p>
+          <label class="form-label small">퇴사일</label>
+          <input type="date" name="퇴사일" class="form-control form-control-sm" id="resignDate">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-warning btn-sm">퇴사 처리</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showResign(sabun, name) {
+  document.getElementById("resignName").textContent = name + " 님을 퇴사 처리합니다.";
+  document.getElementById("resignForm").action = "/employees/resign/" + sabun;
+  document.getElementById("resignDate").value = new Date().toISOString().split("T")[0];
+  new bootstrap.Modal(document.getElementById("resignModal")).show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}조직도 — 웰메이트{% endblock %}
+
+{% block head %}
+<style>
+  @media print {
+    nav, .btn, .no-print { display: none !important; }
+    .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+    body { background: white; }
+  }
+  .org-소속 { background: #1a56db; color: white; font-weight: 700; padding: 6px 12px; border-radius: 8px; margin-bottom: 8px; }
+  .org-본부 { background: #dbeafe; color: #1e40af; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+  .org-그룹 { background: #f0fdf4; color: #166534; font-size:.85rem; }
+  .org-dept { font-size:.8rem; color: #6b7280; }
+  .cnt-badge { font-size:.7rem; background:rgba(255,255,255,.3); border-radius:10px; padding:1px 6px; margin-left:4px; }
+  .cnt-badge-dark { font-size:.7rem; background:#1a56db22; color:#1a56db; border-radius:10px; padding:1px 6px; margin-left:4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="page-title mb-0">🏢 조직도</div>
+  <button class="btn btn-outline-secondary btn-sm no-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+</div>
+
+{% if tree %}
+<div class="row g-3">
+  {% for 소속 in tree %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card p-3">
+      <div class="org-소속">
+        {{ 소속.이름 }}
+        <span class="cnt-badge">{{ 소속.total }}명</span>
+      </div>
+      {% set si = loop.index %}
+      <div class="accordion accordion-flush" id="acc_{{ si }}">
+        {% for 본부 in 소속.본부들 %}
+        <div class="accordion-item border-0">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed py-1 px-2" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#b{{ si }}_{{ loop.index }}">
+              <span class="org-본부 me-1">{{ 본부.이름 }}</span>
+              <span class="cnt-badge-dark">{{ 본부.total }}명</span>
+            </button>
+          </h2>
+          <div id="b{{ si }}_{{ loop.index }}" class="accordion-collapse collapse">
+            <div class="accordion-body py-1 px-2">
+              {% for 그룹 in 본부.그룹들 %}
+              <div class="org-그룹 p-2 mb-1 rounded">
+                <div class="fw-semibold">{{ 그룹.이름 }}</div>
+                {% for 부서, cnt in 그룹.부서들 %}
+                <div class="org-dept ps-2">▸ {{ 부서 }} <span class="text-muted">({{ cnt }}명)</span></div>
+                {% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">직원 데이터가 없습니다. <a href="/employees/import">임포트</a>하세요.</div>
+{% endif %}
+{% endblock %}

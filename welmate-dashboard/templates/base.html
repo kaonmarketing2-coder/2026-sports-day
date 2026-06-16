@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}웰메이트{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f0f4f8; font-size: 13px; }
+    .navbar { background: #1a56db !important; }
+    .navbar-brand { font-weight: 700; font-size: 1rem; }
+    .nav-link { color: rgba(255,255,255,.8) !important; font-size: .85rem; }
+    .nav-link:hover, .nav-link.active { color: #fff !important; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+    .btn-primary { background: #1a56db; border-color: #1a56db; }
+    .page-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<nav class="navbar navbar-expand-lg mb-4 px-3">
+  <a class="navbar-brand text-white" href="/">💙 웰메이트</a>
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navMenu">
+    <ul class="navbar-nav me-auto">
+      <li class="nav-item"><a class="nav-link {% if request.path=='/' %}active{% endif %}" href="/">대시보드</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.path.startswith('/employees') %}active{% endif %}" href="/employees">직원 DB</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.path=='/org' %}active{% endif %}" href="/org">조직도</a></li>
+      <li class="nav-item"><a class="nav-link {% if request.path=='/resigned' %}active{% endif %}" href="/resigned">퇴사자</a></li>
+      <li class="nav-item"><a class="nav-link" href="/wellmate/new">+ 매칭 등록</a></li>
+    </ul>
+    <a class="btn btn-outline-light btn-sm" href="/logout">로그아웃</a>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+  {% with msgs = get_flashed_messages() %}
+    {% if msgs %}
+      {% for msg in msgs %}
+        <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

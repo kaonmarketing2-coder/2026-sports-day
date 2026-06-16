@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>웰메이트 로그인</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f0f4f8; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { width: 340px; border: none; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.12); }
+  </style>
+</head>
+<body>
+<div class="card login-card p-4">
+  <div class="text-center mb-4">
+    <div style="font-size:2rem">💙</div>
+    <h5 class="fw-bold mt-2">웰메이트 대시보드</h5>
+    <small class="text-muted">브랜딩&컬처팀</small>
+  </div>
+  {% if error %}
+  <div class="alert alert-danger py-2 small">{{ error }}</div>
+  {% endif %}
+  <form method="POST">
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">비밀번호</label>
+      <input type="password" name="password" class="form-control" placeholder="팀 공용 비밀번호" autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">로그인</button>
+  </form>
+</div>
+</body>
+</html>

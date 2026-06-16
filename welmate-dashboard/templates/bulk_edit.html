@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}벌크 수정 — 웰메이트{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-6">
+<div class="page-title">🔄 직원 정보 벌크 수정</div>
+
+{% if result %}
+<div class="alert alert-success">✅ {{ result }}</div>
+{% endif %}
+
+<div class="card p-4">
+  <p class="text-muted small mb-3">특정 조건에 해당하는 직원 전체의 정보를 한 번에 변경합니다.</p>
+  <form method="POST">
+    <div class="row g-3">
+      <div class="col-6">
+        <label class="form-label fw-semibold">필터 기준</label>
+        <select name="filter_col" class="form-select">
+          <option value="소속">소속</option>
+          <option value="본부">본부</option>
+          <option value="그룹">그룹</option>
+          <option value="부서팀">부서/팀</option>
+          <option value="파트">파트</option>
+          <option value="직책">직책</option>
+        </select>
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">필터 값</label>
+        <input type="text" name="filter_val" class="form-control" placeholder="예: 가온브로드밴드" required>
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">변경할 항목</label>
+        <select name="update_col" class="form-select">
+          <option value="소속">소속</option>
+          <option value="본부">본부</option>
+          <option value="그룹">그룹</option>
+          <option value="부서팀">부서/팀</option>
+          <option value="파트">파트</option>
+          <option value="직책">직책</option>
+        </select>
+      </div>
+      <div class="col-6">
+        <label class="form-label fw-semibold">새 값</label>
+        <input type="text" name="update_val" class="form-control" placeholder="새로운 값 입력" required>
+      </div>
+    </div>
+    <div class="alert alert-warning mt-3 py-2 small">
+      ⚠️ 조건에 해당하는 재직 중인 직원 전체에 적용됩니다. 신중하게 사용하세요.
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-warning px-4"
+              onclick="return confirm('조건에 해당하는 직원 전체를 변경합니다. 계속하시겠습니까?')">적용</button>
+      <a href="/employees" class="btn btn-outline-secondary">취소</a>
+    </div>
+  </form>
+</div>
+</div>
+</div>
+{% endblock %}

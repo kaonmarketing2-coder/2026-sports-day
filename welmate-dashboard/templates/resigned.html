@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}퇴사자 — 웰메이트{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="page-title mb-0">📤 퇴사자 현황</div>
+  <a href="/resigned/export" class="btn btn-outline-success btn-sm">📤 엑셀 추출</a>
+</div>
+
+{% if 소속_count %}
+<div class="card p-3 mb-4">
+  <div class="fw-bold mb-2" style="font-size:.9rem">📊 소속별 퇴사자 현황</div>
+  <canvas id="resignChart" height="80"></canvas>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>사번</th><th>이름</th><th>직책</th><th>소속</th><th>부서/팀</th><th>입사일</th><th>퇴사일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in employees %}
+        <tr>
+          <td class="text-muted small">{{ e.사번 }}</td>
+          <td><strong>{{ e.이름 }}</strong></td>
+          <td>{{ e.직책 or "-" }}</td>
+          <td>{{ e.소속 or "-" }}</td>
+          <td class="text-muted small">{{ e.부서팀 or "-" }}</td>
+          <td class="text-muted small">{{ e.입사일 or "-" }}</td>
+          <td class="text-muted small">{{ e.퇴사일 or "-" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">퇴사자 데이터가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="text-muted mt-2" style="font-size:.8rem">총 {{ employees|length }}명</div>
+{% endblock %}
+
+{% block scripts %}
+{% if 소속_count %}
+<script>
+const labels = {{ 소속_count.keys() | list | tojson }};
+const data   = {{ 소속_count.values() | list | tojson }};
+new Chart(document.getElementById("resignChart"), {
+  type: "bar",
+  data: {
+    labels: labels,
+    datasets: [{
+      label: "퇴사자 수",
+      data: data,
+      backgroundColor: "rgba(239,68,68,0.7)",
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}
