@@ -225,14 +225,24 @@ def add_wellmate(data):
 
 
 def get_pending_wellmates():
-    """웰메이트 미배정(멘토_이름이 비어있는) 레코드 + 신규입사자 정보 조인"""
+    """웰메이트 미배정 레코드 중 실제 재직 직원이 있는 것만 반환. 없으면 자동 삭제."""
     conn = get_conn()
+    # 직원이 없거나 퇴사한 미배정 레코드 자동 삭제
+    conn.execute("""
+        DELETE FROM wellmate
+        WHERE (멘토_이름 IS NULL OR 멘토_이름 = '')
+          AND 멘티_사번 NOT IN (
+              SELECT 사번 FROM employees WHERE 상태 IS NULL OR 상태 = '재직'
+          )
+    """)
+    conn.commit()
     rows = conn.execute("""
         SELECT w.id, w.멘티_사번, w.생성일,
                e.이름 as 신규입사자명, e.직책, e.소속, e.부서팀, e.입사일
         FROM wellmate w
-        LEFT JOIN employees e ON w.멘티_사번 = e.사번
-        WHERE w.멘토_이름 IS NULL OR w.멘토_이름 = ''
+        JOIN employees e ON w.멘티_사번 = e.사번
+        WHERE (w.멘토_이름 IS NULL OR w.멘토_이름 = '')
+          AND (e.상태 IS NULL OR e.상태 = '재직')
         ORDER BY w.id ASC
     """).fetchall()
     conn.close()
@@ -506,7 +516,7 @@ def get_calendar_events(year, month):
     ym = f"{year:04d}-{month:02d}"
     conn = get_conn()
     rows = conn.execute("""
-        SELECT w.id, w.멘토_이름, w.멘티_사번, w.마감월, w.엔드서베이,
+        SELECT w.id, w.멘토_이름, w.멘티_사번, w.마감월, w.엔드서베이, w.엔드서베이_완료,
                e.이름 as 멘티_이름, e.소속 as 멘티_소속, e.부서팀 as 멘티_팀
         FROM wellmate w
         LEFT JOIN employees e ON w.멘티_사번 = e.사번
@@ -534,6 +544,7 @@ def get_calendar_events(year, month):
                 "팀": r["멘티_팀"] or "",
                 "소속": r["멘티_소속"] or "-",
                 "id": r["id"],
+                "완료": bool(r["엔드서베이_완료"]),
             })
     return events
 

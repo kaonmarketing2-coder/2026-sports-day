@@ -260,15 +260,15 @@
       <thead>
         <tr>
           <th rowspan="2" class="text-center align-middle" style="width:36px">#</th>
-          <th colspan="2" class="text-center mentor">🧑‍💼 웰메이트</th>
-          <th colspan="3" class="text-center mentee">🌱 신규입사자</th>
+          <th colspan="3" class="text-center mentor">🧑‍💼 웰메이트</th>
+          <th colspan="4" class="text-center mentee">🌱 신규입사자</th>
           <th colspan="4" class="text-center date">📅 일정</th>
           <th rowspan="2" class="text-center align-middle">재직</th>
           <th rowspan="2" class="text-center align-middle">관리</th>
         </tr>
         <tr>
-          <th class="mentor">이름</th><th class="mentor">직책 · 부서/팀</th>
-          <th class="mentee">이름</th><th class="mentee">직책 · 부서/팀</th><th class="mentee">입사일</th>
+          <th class="mentor">이름</th><th class="mentor">직책</th><th class="mentor">부서/팀</th>
+          <th class="mentee">이름</th><th class="mentee">직책</th><th class="mentee">부서/팀</th><th class="mentee">입사일</th>
           <th class="date">마감월</th><th class="date">잔여</th>
           <th class="date">엔드서베이</th><th class="date">잔여</th>
         </tr>
@@ -283,18 +283,14 @@
         <tr class="{{ rc }}">
           <td class="text-center text-muted">{{ loop.index }}</td>
           <td><strong>{{ r.멘토_이름 }}</strong></td>
+          <td class="text-muted" style="font-size:.8rem">{{ r.멘토.직책 if r.멘토 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">
-            {% if r.멘토 %}
-              {{ r.멘토.직책 or "-" }}
-              {% if r.멘토.부서팀 %}<br><span style="font-size:.75rem">{{ r.멘토.부서팀 }}{% if r.멘토.파트 %} ({{ r.멘토.파트 }}){% endif %}</span>{% endif %}
-            {% else %}-{% endif %}
+            {% if r.멘토 and r.멘토.부서팀 %}{{ r.멘토.부서팀 }}{% if r.멘토.파트 %} ({{ r.멘토.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
           <td>{{ r.멘티.이름 if r.멘티 else "-" }}</td>
+          <td class="text-muted" style="font-size:.8rem">{{ r.멘티.직책 if r.멘티 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">
-            {% if r.멘티 %}
-              {{ r.멘티.직책 or "-" }}
-              {% if r.멘티.부서팀 %}<br><span style="font-size:.75rem">{{ r.멘티.부서팀 }}{% if r.멘티.파트 %} ({{ r.멘티.파트 }}){% endif %}</span>{% endif %}
-            {% else %}-{% endif %}
+            {% if r.멘티 and r.멘티.부서팀 %}{{ r.멘티.부서팀 }}{% if r.멘티.파트 %} ({{ r.멘티.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
           <td class="text-muted">{{ r.멘티.입사일 if r.멘티 else "-" }}</td>
           <td>{{ r.마감월 or "-" }}</td>
@@ -305,9 +301,23 @@
               {% else %}{{ r.마감_잔여일 }}일{% endif %}
             {% else %}-{% endif %}
           </td>
-          <td>{{ r.엔드서베이 or "-" }}</td>
-          <td class="text-center">
-            {% if r.서베이_잔여일 is not none %}
+          <td id="sv-date-{{ r.id }}">
+            <span style="{% if r.엔드서베이_완료 %}text-decoration:line-through;color:#9ca3af{% endif %}">
+              {{ r.엔드서베이 or "-" }}
+            </span>
+            {% if r.엔드서베이 %}
+            <button onclick="toggleSurveyRow({{ r.id }}, this)"
+              title="{{ '완료 취소' if r.엔드서베이_완료 else '완료 체크' }}"
+              style="background:none;border:1px solid #d1d5db;border-radius:4px;width:18px;height:18px;
+                     cursor:pointer;font-size:.6rem;padding:0;margin-left:4px;vertical-align:middle">
+              {{ '✓' if r.엔드서베이_완료 else '☐' }}
+            </button>
+            {% endif %}
+          </td>
+          <td class="text-center" id="sv-dday-{{ r.id }}">
+            {% if r.엔드서베이_완료 %}
+              <span class="text-muted" style="font-size:.75rem">완료</span>
+            {% elif r.서베이_잔여일 is not none %}
               {% if r.서베이_임박 %}<span class="badge bg-success badge-d">D-{{ r.서베이_잔여일 }}</span>
               {% elif r.서베이_잔여일 < 0 %}<span class="text-muted">{{ r.서베이_잔여일 }}일</span>
               {% else %}{{ r.서베이_잔여일 }}일{% endif %}
@@ -325,7 +335,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="12" class="text-center text-muted py-4">등록된 매칭이 없습니다. <a href="/wellmate/new">+ 매칭 등록</a></td></tr>
+        <tr><td colspan="14" class="text-center text-muted py-4">등록된 매칭이 없습니다. <a href="/wellmate/new">+ 매칭 등록</a></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -486,7 +496,8 @@ function renderCalendar(y, m) {
     evs.forEach(e => {
       const cls = e.type === '마감' ? 'deadline' : 'survey';
       const team = e.팀 ? `(${e.팀})` : '';
-      evHtml += `<div class="cal-ev ${cls}" title="${e.멘토} & ${e.멘티}${team} [${e.type}]">${e.멘토}&amp;${e.멘티}${team}</div>`;
+      const done = e.완료 ? 'text-decoration:line-through;opacity:.5' : '';
+      evHtml += `<div class="cal-ev ${cls}" style="${done}" title="${e.멘토} & ${e.멘티}${team} [${e.type}${e.완료?' ✓':''}]">${e.멘토}&amp;${e.멘티}${team}${e.완료?' ✓':''}</div>`;
     });
     // 매월 20일: 예산 증액 마감 표시
     if (d === 20) {
@@ -639,7 +650,7 @@ function updateDetailCount() {
   if (el) el.textContent = `총 ${total}건 표시 중`;
 }
 
-/* ── 엔드서베이 완료 체크 ── */
+/* ── 엔드서베이 완료 체크 (노트 카드용) ── */
 function checkSurvey(id) {
   fetch(`/api/survey-check/${id}`, {method: "POST"})
     .then(r => r.json())
@@ -652,7 +663,36 @@ function checkSurvey(id) {
           setTimeout(() => el.remove(), 600);
         }
       }
+      // 테이블 행도 동기화
+      updateSurveyRowUI(id, data.completed);
     });
+}
+
+/* ── 엔드서베이 완료 토글 (테이블 행용) ── */
+function toggleSurveyRow(id, btn) {
+  fetch(`/api/survey-check/${id}`, {method: "POST"})
+    .then(r => r.json())
+    .then(data => {
+      updateSurveyRowUI(id, data.completed);
+      // 노트 카드에서도 제거/복원은 페이지 새로고침으로 반영
+    });
+}
+
+function updateSurveyRowUI(id, completed) {
+  const dateCell = document.getElementById(`sv-date-${id}`);
+  const ddayCell = document.getElementById(`sv-dday-${id}`);
+  if (!dateCell) return;
+  const span = dateCell.querySelector('span');
+  const btn  = dateCell.querySelector('button');
+  if (completed) {
+    if (span) { span.style.textDecoration = 'line-through'; span.style.color = '#9ca3af'; }
+    if (btn)  { btn.textContent = '✓'; btn.title = '완료 취소'; }
+    if (ddayCell) ddayCell.innerHTML = '<span class="text-muted" style="font-size:.75rem">완료</span>';
+  } else {
+    if (span) { span.style.textDecoration = ''; span.style.color = ''; }
+    if (btn)  { btn.textContent = '☐'; btn.title = '완료 체크'; }
+    if (ddayCell) ddayCell.innerHTML = '-';
+  }
 }
 
 /* ── 예산 증액 체크 토글 ── */
