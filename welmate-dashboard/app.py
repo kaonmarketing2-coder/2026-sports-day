@@ -2,13 +2,28 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import pandas as pd
 from datetime import datetime, date
 import io, os
-from config import HOST, PORT, DEBUG, SECRET_KEY, LOGIN_PASSWORD, ALERT_DAYS
 from db import (
     init_db, get_all_wellmate, add_wellmate, update_wellmate, delete_wellmate,
     get_wellmate, get_employee, search_employees, get_all_employees,
     add_employee, update_employee, delete_employee, import_employees_from_df,
-    resign_employee, get_resigned_employees, bulk_update_employees, get_org_tree
+    resign_employee, get_resigned_employees, bulk_update_employees, get_org_tree,
+    get_monthly_hire_counts, get_monthly_resign_counts, get_소속_dist,
+    get_employees_by_hire_month, get_employees_by_resign_month,
+    get_employees_by_소속_name, get_pending_wellmates,
+    get_직책_dist, get_employees_by_직책_cat, get_avg_tenure, get_calendar_events,
+    get_team_list, export_to_excel,
 )
+from config import HOST, PORT, DEBUG, SECRET_KEY, LOGIN_PASSWORD, ALERT_DAYS, EXCEL_EXPORT_PATH
+
+
+def _auto_export():
+    """직원/웰메이트 변경 후 엑셀 자동 저장 (실패해도 무시)"""
+    if not EXCEL_EXPORT_PATH:
+        return
+    try:
+        export_to_excel(EXCEL_EXPORT_PATH)
+    except Exception as e:
+        app.logger.warning(f"엑셀 자동 저장 실패: {e}")
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -90,25 +105,121 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    records = enrich_wellmate(get_all_wellmate())
-    today = date.today().strftime("%Y-%m-%d")
+    all_wm = [r for r in get_all_wellmate() if r.get("멘토_이름")]
+    records = enrich_wellmate(all_wm)
+    pending_wellmates = get_pending_wellmates()
+    today = date.today()
+    today_str = today.strftime("%Y-%m-%d")
+    today_ym = today.strftime("%Y-%m")
 
-    # 소속별 신규입사자 통계
+    # 소속별 신규입사자 (웰메이트 기준)
     소속_count = {}
     for r in records:
         if r.get("멘티") and r["재직중"]:
             s = r["멘티"].get("소속") or "미분류"
             소속_count[s] = 소속_count.get(s, 0) + 1
 
+    # 전체 재직 인원
+    all_emps = get_all_employees()
+    total_employees = len(all_emps)
+
+    # 이번달 입사/퇴사
+    this_month_hires = get_employees_by_hire_month(today_ym)
+    this_month_resigned = get_employees_by_resign_month(today_ym)
+
+    # 월별 차트 데이터 (12개월)
+    monthly_hires = get_monthly_hire_counts(12)
+    monthly_resigned = get_monthly_resign_counts(12)
+
+    # 소속별 분포
+    소속_dist = get_소속_dist()
+
+    # 직책별 분포 + 평균 재직기간
+    직책_dist = get_직책_dist()
+    avg_tenure = get_avg_tenure()
+
+    # 웰메이트 진행률 (재직확인 완료 / 전체 활성 레코드)
+    active = [r for r in records if r["재직중"]]
+    wm_total = len(active)
+    wm_done = sum(1 for r in active if r.get("재직확인"))
+    wm_pct = round(wm_done / wm_total * 100) if wm_total else 0
+    wm_incomplete = [r for r in active if not r.get("재직확인")]
+
     summary = {
         "총원": len(records),
         "재직중": sum(1 for r in records if r["재직중"]),
         "마감_임박": sum(1 for r in records if r["마감_임박"]),
         "서베이_임박": sum(1 for r in records if r["서베이_임박"]),
-        "기준일": today,
+        "기준일": today_str,
         "alert_days": ALERT_DAYS,
     }
-    return render_template("index.html", records=records, summary=summary, 소속_count=소속_count)
+    return render_template("index.html",
+        records=records, summary=summary, 소속_count=소속_count,
+        total_employees=total_employees,
+        this_month_hires=this_month_hires,
+        this_month_resigned=this_month_resigned,
+        monthly_hires=monthly_hires,
+        monthly_resigned=monthly_resigned,
+        소속_dist=소속_dist,
+        직책_dist=직책_dist,
+        avg_tenure=avg_tenure,
+        wm_total=wm_total, wm_done=wm_done, wm_pct=wm_pct,
+        wm_incomplete=wm_incomplete,
+        today_ym=today_ym,
+        pending_wellmates=pending_wellmates,
+    )
+
+
+# ── 대시보드 세부내역 API ─────────────────────────────────────────
+@app.route("/api/dashboard/hires/<yyyymm>")
+@login_required
+def api_dashboard_hires(yyyymm):
+    return jsonify(get_employees_by_hire_month(yyyymm))
+
+
+@app.route("/api/dashboard/resigned/<yyyymm>")
+@login_required
+def api_dashboard_resigned(yyyymm):
+    return jsonify(get_employees_by_resign_month(yyyymm))
+
+
+@app.route("/api/dashboard/by-sokcheol")
+@login_required
+def api_dashboard_by_소속():
+    name = request.args.get("name", "")
+    return jsonify(get_employees_by_소속_name(name))
+
+
+@app.route("/api/dashboard/by-jikchek")
+@login_required
+def api_dashboard_by_직책():
+    cat = request.args.get("cat", "")
+    return jsonify(get_employees_by_직책_cat(cat))
+
+
+@app.route("/api/calendar/<int:year>/<int:month>")
+@login_required
+def api_calendar(year, month):
+    return jsonify(get_calendar_events(year, month))
+
+
+@app.route("/api/dashboard/wm-incomplete")
+@login_required
+def api_dashboard_wm_incomplete():
+    records = enrich_wellmate(get_all_wellmate())
+    active = [r for r in records if r["재직중"] and not r.get("재직확인")]
+    result = []
+    for r in active:
+        result.append({
+            "id": r["id"],
+            "멘토_이름": r["멘토_이름"],
+            "멘티_이름": r["멘티"]["이름"] if r.get("멘티") else "-",
+            "멘티_소속": r["멘티"]["소속"] if r.get("멘티") else "-",
+            "마감월": r["마감월"] or "-",
+            "마감_잔여일": r["마감_잔여일"],
+            "메모": r["메모"] or "",
+        })
+    return jsonify(result)
 
 
 # ── 직원 DB ──────────────────────────────────────────
@@ -135,8 +246,15 @@ def employee_add():
             "파트": request.form.get("파트", ""),
             "입사일": request.form.get("입사일", ""),
         })
-        flash("직원이 등록되었습니다.")
-        return redirect(url_for("employees"))
+        sabun = request.form["사번"].strip()
+        new_wm_id = add_wellmate({
+            "멘토_이름": "", "멘티_사번": sabun,
+            "마감월": None, "엔드서베이": None,
+            "재직확인": None, "퇴사일": None, "메모": None,
+        })
+        _auto_export()
+        flash("직원이 등록되었습니다. 웰메이트를 배정해 주세요.")
+        return redirect(url_for("wellmate_edit", id=new_wm_id))
     return render_template("employee_form.html", emp=None, mode="add")
 
 
@@ -157,6 +275,7 @@ def employee_edit(sabun):
             "파트": request.form.get("파트", ""),
             "입사일": request.form.get("입사일", ""),
         })
+        _auto_export()
         flash("수정되었습니다.")
         return redirect(url_for("employees"))
     return render_template("employee_form.html", emp=emp, mode="edit")
@@ -167,6 +286,7 @@ def employee_edit(sabun):
 def employee_resign(sabun):
     resign_date = request.form.get("퇴사일") or date.today().strftime("%Y-%m-%d")
     resign_employee(sabun, resign_date)
+    _auto_export()
     flash("퇴사 처리되었습니다.")
     return redirect(url_for("employees"))
 
@@ -175,6 +295,7 @@ def employee_resign(sabun):
 @login_required
 def employee_delete(sabun):
     delete_employee(sabun)
+    _auto_export()
     flash("삭제되었습니다.")
     return redirect(url_for("employees"))
 
@@ -243,6 +364,8 @@ def employee_import():
                     wm_count += 1
                 wellmate_result = f"웰메이트 매칭 {wm_count}건 임포트 완료"
 
+    if result or wellmate_result:
+        _auto_export()
     return render_template("import.html", result=result, wellmate_result=wellmate_result)
 
 
@@ -280,12 +403,34 @@ def api_search():
     return jsonify(search_employees(q))
 
 
+@app.route("/api/org-hierarchy")
+@login_required
+def api_org_hierarchy():
+    """소속 + 하위 단위값 입력 시 나머지 계층 자동완성"""
+    소속 = request.args.get("소속", "").strip()
+    field = request.args.get("field", "").strip()   # 파트|부서팀|그룹|본부
+    value = request.args.get("value", "").strip()
+    if not (소속 and field and value):
+        return jsonify({})
+    allowed = {"파트", "부서팀", "그룹", "본부"}
+    if field not in allowed:
+        return jsonify({})
+    conn = __import__("db").get_conn()
+    row = conn.execute(
+        f"SELECT 본부,그룹,부서팀,파트 FROM employees WHERE 소속=? AND {field}=? AND (상태 IS NULL OR 상태='재직') LIMIT 1",
+        (소속, value)
+    ).fetchone()
+    conn.close()
+    return jsonify(dict(row)) if row else jsonify({})
+
+
 # ── 조직도 ────────────────────────────────────────────
 @app.route("/org")
 @login_required
 def org():
     tree = get_org_tree()
-    return render_template("org.html", tree=tree)
+    teams = get_team_list()
+    return render_template("org.html", tree=tree, teams=teams)
 
 
 # ── 퇴사자 ────────────────────────────────────────────
@@ -333,6 +478,7 @@ def wellmate_new():
             "퇴사일": request.form.get("퇴사일") or None,
             "메모": request.form.get("메모") or None,
         })
+        _auto_export()
         flash("매칭이 등록되었습니다.")
         return redirect(url_for("index"))
     return render_template("wellmate_form.html", wm=None, mode="new")
@@ -345,8 +491,9 @@ def wellmate_edit(id):
     if not wm:
         return redirect(url_for("index"))
     if request.method == "POST":
+        mentor = request.form.get("멘토_이름", "").strip()
         update_wellmate(id, {
-            "멘토_이름": request.form["멘토_이름"].strip(),
+            "멘토_이름": mentor or "",
             "멘티_사번": request.form.get("멘티_사번", "").strip() or None,
             "마감월": request.form.get("마감월") or None,
             "엔드서베이": request.form.get("엔드서베이") or None,
@@ -354,15 +501,23 @@ def wellmate_edit(id):
             "퇴사일": request.form.get("퇴사일") or None,
             "메모": request.form.get("메모") or None,
         })
-        flash("수정되었습니다.")
-        return redirect(url_for("index"))
-    return render_template("wellmate_form.html", wm=wm, mode="edit")
+        if mentor:
+            _auto_export()
+            flash("매칭이 저장되었습니다.")
+            return redirect(url_for("index"))
+        else:
+            flash("웰메이트가 입력되지 않았습니다. 배정 후 다시 저장하세요.", "warning")
+            return redirect(url_for("wellmate_edit", id=id))
+    # 멘티 직원 정보 조회 (이메일 초안용)
+    mentee_emp = get_employee(wm["멘티_사번"]) if wm.get("멘티_사번") else None
+    return render_template("wellmate_form.html", wm=wm, mode="edit", mentee_emp=mentee_emp)
 
 
 @app.route("/wellmate/delete/<int:id>", methods=["POST"])
 @login_required
 def wellmate_delete(id):
     delete_wellmate(id)
+    _auto_export()
     flash("삭제되었습니다.")
     return redirect(url_for("index"))
 

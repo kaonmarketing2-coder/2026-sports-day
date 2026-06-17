@@ -15,5 +15,9 @@ DEBUG = False       # 팀원 공유 시 False 권장
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "wellmate.db")
 
+# 엑셀 자동 백업 경로 (None이면 비활성화)
+# Windows 예시: r"C:\Users\k250801\OneDrive - KAON MEDIA CO., LTD\Branding&Culture - 문서\브컬 only\3. 사내 프로그램\웰메이트\wellmate_backup.xlsx"
+EXCEL_EXPORT_PATH = os.path.join(BASE_DIR, "wellmate_backup.xlsx")
+
 # Flask secret key
 SECRET_KEY = "kaon-wellmate-secret-2026"
