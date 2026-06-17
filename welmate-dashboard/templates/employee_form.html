@@ -77,6 +77,12 @@
         <input type="date" name="입사일" id="f_입사일" class="form-control" required value="{{ emp.입사일 if emp else '' }}">
       </div>
 
+      <div class="col-12">
+        <label class="form-label fw-semibold">메모</label>
+        <textarea name="메모" class="form-control" rows="2"
+                  placeholder="특이사항 등 자유롭게 기록">{{ emp.메모 if emp and emp.메모 else '' }}</textarea>
+      </div>
+
     </div>
 
     <div id="validationMsg" class="alert alert-danger mt-3 py-2" style="display:none;font-size:.83rem"></div>

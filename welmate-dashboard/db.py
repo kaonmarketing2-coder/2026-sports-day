@@ -53,7 +53,7 @@ def init_db():
         );
     """)
     # 기존 DB에 컬럼 추가 (마이그레이션)
-    for col, default in [("상태", "'재직'"), ("퇴사일", "NULL")]:
+    for col, default in [("상태", "'재직'"), ("퇴사일", "NULL"), ("메모", "NULL")]:
         try:
             c.execute(f"ALTER TABLE employees ADD COLUMN {col} TEXT DEFAULT {default}")
         except Exception:
@@ -144,13 +144,13 @@ def get_resigned_employees():
 def add_employee(data):
     conn = get_conn()
     conn.execute("""
-        INSERT INTO employees (사번, 이름, 소속, 직책, 본부, 그룹, 부서팀, 파트, 입사일, 상태)
-        VALUES (:사번,:이름,:소속,:직책,:본부,:그룹,:부서팀,:파트,:입사일,'재직')
+        INSERT INTO employees (사번, 이름, 소속, 직책, 본부, 그룹, 부서팀, 파트, 입사일, 상태, 메모)
+        VALUES (:사번,:이름,:소속,:직책,:본부,:그룹,:부서팀,:파트,:입사일,'재직',:메모)
         ON CONFLICT(사번) DO UPDATE SET
             이름=excluded.이름, 소속=excluded.소속, 직책=excluded.직책,
             본부=excluded.본부, 그룹=excluded.그룹, 부서팀=excluded.부서팀,
-            파트=excluded.파트, 입사일=excluded.입사일
-    """, data)
+            파트=excluded.파트, 입사일=excluded.입사일, 메모=excluded.메모
+    """, {**data, "메모": data.get("메모")})
     conn.commit()
     conn.close()
 
@@ -159,7 +159,7 @@ def update_employee(sabun, data):
     conn = get_conn()
     conn.execute("""
         UPDATE employees SET 이름=:이름, 소속=:소속, 직책=:직책, 본부=:본부,
-        그룹=:그룹, 부서팀=:부서팀, 파트=:파트, 입사일=:입사일 WHERE 사번=:sabun
+        그룹=:그룹, 부서팀=:부서팀, 파트=:파트, 입사일=:입사일, 메모=:메모 WHERE 사번=:sabun
     """, {**data, "sabun": sabun})
     conn.commit()
     conn.close()

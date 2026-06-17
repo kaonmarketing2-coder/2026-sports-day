@@ -245,6 +245,7 @@ def employee_add():
             "부서팀": request.form.get("부서팀", ""),
             "파트": request.form.get("파트", ""),
             "입사일": request.form.get("입사일", ""),
+            "메모": request.form.get("메모", "") or None,
         })
         sabun = request.form["사번"].strip()
         new_wm_id = add_wellmate({
@@ -274,6 +275,7 @@ def employee_edit(sabun):
             "부서팀": request.form.get("부서팀", ""),
             "파트": request.form.get("파트", ""),
             "입사일": request.form.get("입사일", ""),
+            "메모": request.form.get("메모", "") or None,
         })
         _auto_export()
         flash("수정되었습니다.")
