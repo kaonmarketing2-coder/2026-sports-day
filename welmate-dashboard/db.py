@@ -194,6 +194,8 @@ def bulk_update_employees(filter_col, filter_val, update_col, update_val):
 def delete_employee(sabun):
     conn = get_conn()
     conn.execute("DELETE FROM employees WHERE 사번=?", (sabun,))
+    # 미배정 웰메이트 레코드도 함께 삭제
+    conn.execute("DELETE FROM wellmate WHERE 멘티_사번=? AND (멘토_이름 IS NULL OR 멘토_이름='')", (sabun,))
     conn.commit()
     conn.close()
 
