@@ -125,22 +125,55 @@
   <!-- 엔드서베이 이메일 초안 -->
   {% if mode=="edit" and wm and wm.엔드서베이 and mentee_emp %}
   <div class="card p-4 mb-3" style="border-left:4px solid #10b981">
-    <h6 class="fw-bold mb-3">📧 엔드서베이 요청 이메일 초안</h6>
-    <div class="email-field">
-      <label>수신</label>
-      <input type="text" id="surveyTo" class="form-control form-control-sm" placeholder="신규입사자 이메일 주소" style="max-width:280px" oninput="updateSurveyPreview()">
+    <h6 class="fw-bold mb-3">📧 엔드서베이 이메일 초안</h6>
+
+    {# 링크 입력 공통 #}
+    <div class="email-field mb-3">
+      <label style="min-width:80px">설문 링크</label>
+      <input type="text" id="surveyLink" class="form-control form-control-sm"
+             placeholder="https://..." style="max-width:360px"
+             oninput="updateSurveyPreviews()">
     </div>
-    <div class="mt-3 mb-2" style="font-size:.75rem;color:#6b7280">미리보기</div>
-    <div class="email-preview" id="surveyPreview"></div>
-    <div class="d-flex gap-2 mt-3">
-      <button type="button" class="btn btn-success btn-sm" onclick="openSurveyOutlook()">
-        📨 Outlook에서 열기
-      </button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copySurveyEmail()">
-        📋 전체 복사
-      </button>
+
+    <div class="row g-3">
+      {# 신규입사자에게 #}
+      <div class="col-12 col-md-6">
+        <div style="background:#f0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:12px">
+          <div class="fw-semibold mb-2" style="font-size:.82rem;color:#065f46">🌱 신규입사자에게</div>
+          <div class="email-field">
+            <label>수신</label>
+            <input type="text" id="surveyTo" class="form-control form-control-sm"
+                   placeholder="신규입사자 이메일" style="max-width:220px" oninput="updateSurveyPreviews()">
+          </div>
+          <div class="mt-2 mb-1" style="font-size:.72rem;color:#6b7280">미리보기</div>
+          <div class="email-preview" id="surveyPreview" style="max-height:120px;overflow-y:auto"></div>
+          <div class="d-flex gap-2 mt-2">
+            <button type="button" class="btn btn-success btn-sm" onclick="openSurveyOutlook()">📨 열기</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copySurveyEmail()">📋 복사</button>
+          </div>
+          <div id="surveyCopyDone" class="text-success mt-1" style="font-size:.75rem;display:none">✅ 복사됨</div>
+        </div>
+      </div>
+
+      {# 웰메이트에게 #}
+      <div class="col-12 col-md-6">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px">
+          <div class="fw-semibold mb-2" style="font-size:.82rem;color:#1e40af">🧑‍💼 웰메이트에게</div>
+          <div class="email-field">
+            <label>수신</label>
+            <input type="text" id="surveyToMentor" class="form-control form-control-sm"
+                   placeholder="웰메이트 이메일" style="max-width:220px" oninput="updateSurveyPreviews()">
+          </div>
+          <div class="mt-2 mb-1" style="font-size:.72rem;color:#6b7280">미리보기</div>
+          <div class="email-preview" id="surveyPreviewMentor" style="max-height:120px;overflow-y:auto"></div>
+          <div class="d-flex gap-2 mt-2">
+            <button type="button" class="btn btn-primary btn-sm" onclick="openSurveyOutlookMentor()">📨 열기</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copySurveyEmailMentor()">📋 복사</button>
+          </div>
+          <div id="surveyCopyDoneMentor" class="text-success mt-1" style="font-size:.75rem;display:none">✅ 복사됨</div>
+        </div>
+      </div>
     </div>
-    <div id="surveyCopyDone" class="text-success mt-1" style="font-size:.78rem;display:none">✅ 클립보드에 복사되었습니다.</div>
   </div>
   {% endif %}
 
@@ -287,44 +320,66 @@ document.addEventListener("click", function(e) {
 /* ── 엔드서베이 이메일 초안 ── */
 {% if mode=="edit" and wm and wm.엔드서베이 and mentee_emp %}
 const SURVEY_EMP = {
-  이름:     "{{ mentee_emp.이름 or '' }}",
-  소속:     "{{ mentee_emp.소속 or '' }}",
-  부서팀:   "{{ mentee_emp.부서팀 or '' }}",
-  직책:     "{{ mentee_emp.직책 or '' }}",
-  입사일:   "{{ mentee_emp.입사일 or '' }}",
+  이름:   "{{ mentee_emp.이름 or '' }}",
+  소속:   "{{ mentee_emp.소속 or '' }}",
+  부서팀: "{{ mentee_emp.부서팀 or '' }}",
+  직책:   "{{ mentee_emp.직책 or '' }}",
+  입사일: "{{ mentee_emp.입사일 or '' }}",
 };
-const SURVEY_DEADLINE = "{{ wm.엔드서베이 }}";
+const SURVEY_DEADLINE  = "{{ wm.엔드서베이 }}";
+const SURVEY_MONTH_KO  = "{{ wm.엔드서베이[:7] if wm.엔드서베이 else '' }}".replace("-", "년 ") + "월";
+const MENTOR_NAME      = "{{ wm.멘토_이름 or '' }}";
 
-function buildSurveyBody() {
-  return `안녕하세요 ${SURVEY_EMP.이름}님,\n\nBranding&Culture Part 형세희 입니다.\n\n가온에서의 적응은 잘 하고 계신가요? 어느덧 입사하신 지도 시간이 꽤 흘렀네요.\n\n웰메이트 프로그램 엔드서베이 마감일(${SURVEY_DEADLINE})이 다가오고 있습니다.\n아래 링크를 통해 ${SURVEY_DEADLINE}까지 엔드서베이를 완료해 주시면 감사하겠습니다.\n\n[신규입사자 정보]\n- 이름 : ${SURVEY_EMP.이름}\n- 소속 : ${SURVEY_EMP.소속}\n- 부서/팀 : ${SURVEY_EMP.부서팀}\n- 직책 : ${SURVEY_EMP.직책}\n- 입사일 : ${SURVEY_EMP.입사일}\n\n궁금하신 점이 있으시면 편하게 연락 주세요.\n감사합니다.\n\n형세희 드림`;
+function getSurveyLink() {
+  return document.getElementById('surveyLink').value.trim() || '[설문 링크]';
 }
 
+/* 신규입사자에게 */
+function buildSurveyBody() {
+  const link = getSurveyLink();
+  return `안녕하세요 ${SURVEY_EMP.이름}님,\n\nBranding&Culture Part 형세희 입니다.\n\n가온에서의 적응은 잘 하고 계신가요? 어느덧 입사하신 지도 시간이 꽤 흘렀네요.\n\n웰메이트 프로그램 엔드서베이 마감일(${SURVEY_DEADLINE})이 다가오고 있습니다.\n아래 링크를 통해 ${SURVEY_DEADLINE}까지 엔드서베이를 완료해 주시면 감사하겠습니다.\n\n${link}\n\n궁금하신 점이 있으시면 편하게 연락 주세요.\n감사합니다.\n\n형세희 드림`;
+}
 function buildSurveySubject() {
   return `[요청] ${SURVEY_EMP.이름} 엔드서베이 완료 부탁드립니다`;
 }
 
-function updateSurveyPreview() {
+/* 웰메이트에게 */
+function buildSurveyBodyMentor() {
+  const link = getSurveyLink();
+  return `안녕하세요 웰메이트 여러분,\n\nBranding&Culture Part 형세희 입니다.\n\n${SURVEY_MONTH_KO} 입사자분들의 온보딩을 함께 해주셔서 감사드립니다 😊\n\n엔드서베이 마감일(${SURVEY_DEADLINE})이 다가오고 있습니다.\n담당 신규입사자(${SURVEY_EMP.이름})에게 아래 링크 완료를 안내 부탁드립니다.\n\n${link}\n\n감사합니다.\n\n형세희 드림`;
+}
+function buildSurveySubjectMentor() {
+  return `[요청] ${SURVEY_MONTH_KO} 신규입사자 엔드서베이 완료 안내`;
+}
+
+function updateSurveyPreviews() {
   document.getElementById('surveyPreview').textContent = buildSurveyBody();
+  document.getElementById('surveyPreviewMentor').textContent = buildSurveyBodyMentor();
 }
 
 function openSurveyOutlook() {
   const to = document.getElementById('surveyTo').value.trim();
-  const subject = encodeURIComponent(buildSurveySubject());
-  const body = encodeURIComponent(buildSurveyBody());
-  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(buildSurveySubject())}&body=${encodeURIComponent(buildSurveyBody())}`;
+}
+function openSurveyOutlookMentor() {
+  const to = document.getElementById('surveyToMentor').value.trim();
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(buildSurveySubjectMentor())}&body=${encodeURIComponent(buildSurveyBodyMentor())}`;
 }
 
 function copySurveyEmail() {
-  const full = `제목: ${buildSurveySubject()}\n\n${buildSurveyBody()}`;
-  navigator.clipboard.writeText(full).then(() => {
+  navigator.clipboard.writeText(`제목: ${buildSurveySubject()}\n\n${buildSurveyBody()}`).then(() => {
     const el = document.getElementById('surveyCopyDone');
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 2000);
+    el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 2000);
+  });
+}
+function copySurveyEmailMentor() {
+  navigator.clipboard.writeText(`제목: ${buildSurveySubjectMentor()}\n\n${buildSurveyBodyMentor()}`).then(() => {
+    const el = document.getElementById('surveyCopyDoneMentor');
+    el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 2000);
   });
 }
 
-// 초기 미리보기
-updateSurveyPreview();
+updateSurveyPreviews();
 {% endif %}
 </script>
 {% endblock %}

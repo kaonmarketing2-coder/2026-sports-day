@@ -91,31 +91,35 @@
     </div>
   </div>
 
-  {# ── 엔드서베이 임박 카드 ── #}
+  {# ── 엔드서베이 임박/미완료 카드 ── #}
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 p-3" style="border-left:4px solid #10b981;background:#f0fdf4;">
       <div class="d-flex align-items-center gap-2 mb-2">
         <span style="font-size:1rem">📋</span>
-        <span style="font-weight:700;font-size:.85rem;color:#065f46">엔드서베이 임박</span>
+        <span style="font-weight:700;font-size:.85rem;color:#065f46">엔드서베이</span>
         {% if upcoming %}
         <span class="badge ms-auto" style="font-size:.72rem;background:#d1fae5;color:#065f46">{{ upcoming|length }}건</span>
         {% endif %}
       </div>
       {% if upcoming %}
-      <div style="max-height:110px;overflow-y:auto;">
+      <div id="surveyList" style="max-height:110px;overflow-y:auto;">
         {% for u in upcoming %}
-        <div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #a7f3d0;font-size:.8rem">
-          <span style="min-width:28px;text-align:center;font-weight:700;
-            color:{% if u.잔여일 <= 7 %}#dc2626{% elif u.잔여일 <= 14 %}#d97706{% else %}#16a34a{% endif %}">
-            D-{{ u.잔여일 }}
+        <div class="d-flex align-items-center gap-2 py-1 survey-item" id="si-{{ u.id }}"
+             style="border-bottom:1px solid #a7f3d0;font-size:.8rem">
+          <button onclick="checkSurvey({{ u.id }})" title="완료 체크"
+            style="background:none;border:1px solid #d1d5db;border-radius:4px;width:18px;height:18px;
+                   cursor:pointer;flex-shrink:0;padding:0;font-size:.6rem">☐</button>
+          <span style="font-weight:700;min-width:32px;text-align:center;
+            color:{% if u.잔여일 < 0 %}#dc2626{% elif u.잔여일 <= 7 %}#dc2626{% elif u.잔여일 <= 14 %}#d97706{% else %}#16a34a{% endif %}">
+            {% if u.잔여일 < 0 %}D+{{ u.잔여일|abs }}{% else %}D-{{ u.잔여일 }}{% endif %}
           </span>
-          <span style="color:#1f2937;font-weight:600">{{ u.이름 }}</span>
-          <span class="text-muted ms-auto">{{ u.날짜 }}</span>
+          <span style="color:#1f2937">{{ u.이름 }}</span>
+          <span class="text-muted ms-auto" style="font-size:.72rem">{{ u.날짜 }}</span>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div class="text-muted" style="font-size:.8rem">D-30 이내 마감 예정 없음</div>
+      <div class="text-muted" style="font-size:.8rem">미완료 항목 없음</div>
       {% endif %}
     </div>
   </div>
@@ -633,6 +637,22 @@ function updateDetailCount() {
   const total = document.querySelectorAll("#detailTbody tr:not([style*='none'])").length;
   const el = document.getElementById("detailCount");
   if (el) el.textContent = `총 ${total}건 표시 중`;
+}
+
+/* ── 엔드서베이 완료 체크 ── */
+function checkSurvey(id) {
+  fetch(`/api/survey-check/${id}`, {method: "POST"})
+    .then(r => r.json())
+    .then(data => {
+      if (data.completed) {
+        const el = document.getElementById(`si-${id}`);
+        if (el) {
+          el.style.opacity = "0.4";
+          el.style.textDecoration = "line-through";
+          setTimeout(() => el.remove(), 600);
+        }
+      }
+    });
 }
 
 /* ── 예산 증액 체크 토글 ── */

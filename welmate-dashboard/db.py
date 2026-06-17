@@ -62,6 +62,11 @@ def init_db():
             c.execute(f"ALTER TABLE employees ADD COLUMN {col} TEXT DEFAULT {default}")
         except Exception:
             pass
+    for col, default in [("엔드서베이_완료", "NULL")]:
+        try:
+            c.execute(f"ALTER TABLE wellmate ADD COLUMN {col} TEXT DEFAULT {default}")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -609,6 +614,26 @@ def export_to_excel(path: str):
             cell = ws.cell(row=1, column=1)
             cell.font = gray_font
             cell.fill = gray_fill
+
+
+def toggle_survey_complete(wm_id: int) -> bool:
+    """엔드서베이 완료 토글. 완료 후 상태(True/False) 반환."""
+    conn = get_conn()
+    row = conn.execute("SELECT 엔드서베이_완료 FROM wellmate WHERE id=?", (wm_id,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    from datetime import date
+    if row["엔드서베이_완료"]:
+        conn.execute("UPDATE wellmate SET 엔드서베이_완료=NULL WHERE id=?", (wm_id,))
+        result = False
+    else:
+        conn.execute("UPDATE wellmate SET 엔드서베이_완료=? WHERE id=?",
+                     (date.today().strftime("%Y-%m-%d"), wm_id))
+        result = True
+    conn.commit()
+    conn.close()
+    return result
 
 
 def is_budget_checked(ym: str) -> bool:

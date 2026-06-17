@@ -13,6 +13,7 @@ from db import (
     get_직책_dist, get_employees_by_직책_cat, get_avg_tenure, get_calendar_events,
     get_team_list, export_to_excel,
     is_budget_checked, set_budget_checked, unset_budget_checked,
+    toggle_survey_complete,
 )
 from config import HOST, PORT, DEBUG, SECRET_KEY, LOGIN_PASSWORD, ALERT_DAYS, EXCEL_EXPORT_PATH
 
@@ -155,12 +156,23 @@ def index():
         "기준일": today_str,
         "alert_days": ALERT_DAYS,
     }
-    # 엔드서베이 임박 목록 (D-30 이내)
+    # 엔드서베이 임박/미완료 목록 (D-30 이내 또는 기한 지났으나 미완료)
     upcoming = []
     for r in records:
+        if not r.get("엔드서베이"):
+            continue
+        if r.get("엔드서베이_완료"):
+            continue
         mentee_name = (r.get("멘티") or {}).get("이름") or r.get("멘티_사번") or "-"
-        if r["서베이_잔여일"] is not None and 0 <= r["서베이_잔여일"] <= 30:
-            upcoming.append({"이름": mentee_name, "종류": "엔드서베이", "날짜": r["엔드서베이"], "잔여일": r["서베이_잔여일"]})
+        잔여일 = r["서베이_잔여일"]
+        if 잔여일 is not None and 잔여일 <= 30:
+            upcoming.append({
+                "id": r["id"],
+                "이름": mentee_name,
+                "날짜": r["엔드서베이"],
+                "잔여일": 잔여일,
+                "완료": False,
+            })
     upcoming.sort(key=lambda x: x["잔여일"])
 
     # 예산 증액 마감 D-day (매월 20일)
@@ -195,6 +207,14 @@ def index():
         budget_ym=budget_ym,
         budget_checked=budget_checked,
     )
+
+
+# ── 엔드서베이 완료 토글 ─────────────────────────────────────────
+@app.route("/api/survey-check/<int:wm_id>", methods=["POST"])
+@login_required
+def api_survey_check(wm_id):
+    done = toggle_survey_complete(wm_id)
+    return jsonify({"completed": done})
 
 
 # ── 예산 증액 체크 토글 ──────────────────────────────────────────
