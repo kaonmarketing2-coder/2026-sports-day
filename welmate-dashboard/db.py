@@ -566,6 +566,8 @@ def get_team_list():
 def export_to_excel(path: str):
     """직원DB + 웰메이트 현황을 엑셀 파일로 저장한다."""
     import pandas as pd
+    from openpyxl.styles import Font, PatternFill
+    from datetime import datetime
     conn = get_conn()
 
     emp_rows = conn.execute("""
@@ -586,6 +588,18 @@ def export_to_excel(path: str):
     df_emp = pd.DataFrame([dict(r) for r in emp_rows]) if emp_rows else pd.DataFrame()
     df_wm  = pd.DataFrame([dict(r) for r in wm_rows])  if wm_rows  else pd.DataFrame()
 
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    gray_fill = PatternFill("solid", fgColor="F3F4F6")
+    gray_font = Font(color="6B7280", size=9)
+
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        df_emp.to_excel(writer, sheet_name="직원DB",       index=False)
-        df_wm.to_excel(writer,  sheet_name="웰메이트배정현황", index=False)
+        # 데이터를 2행부터 쓰고, 1행에 수정일시 메모 삽입
+        df_emp.to_excel(writer, sheet_name="직원DB",         index=False, startrow=1)
+        df_wm.to_excel(writer,  sheet_name="웰메이트배정현황", index=False, startrow=1)
+
+        for sheet_name in ["직원DB", "웰메이트배정현황"]:
+            ws = writer.sheets[sheet_name]
+            ws.cell(row=1, column=1, value=f"마지막 업데이트: {now_str}")
+            cell = ws.cell(row=1, column=1)
+            cell.font = gray_font
+            cell.fill = gray_fill
