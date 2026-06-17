@@ -11,8 +11,50 @@
   tr.서베이임박 { background: #d1fae5 !important; }
   tr.둘다임박  { background: #fee2e2 !important; }
   tr.퇴직 td  { color: #adb5bd; }
-  .badge-d { font-size: .7rem; }
-  .stat-num { font-size: 1.8rem; font-weight: 700; }
+  .badge-d { font-size:.7rem; }
+
+  /* ── 스탯 카드 ── */
+  .stat-card {
+    border-radius: 14px; padding: 18px 20px; cursor: pointer;
+    transition: box-shadow .15s, transform .1s; position: relative; overflow: hidden;
+  }
+  .stat-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.13); transform: translateY(-2px); }
+  .stat-card .stat-label { font-size:.75rem; font-weight:600; opacity:.8; letter-spacing:.03em; }
+  .stat-card .stat-num   { font-size:2rem; font-weight:800; line-height:1.1; margin:4px 0 2px; }
+  .stat-card .stat-sub   { font-size:.72rem; opacity:.75; }
+  .stat-card .stat-icon  { position:absolute; right:16px; top:14px; font-size:1.6rem; opacity:.25; }
+  .stat-card.blue  { background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:#fff; }
+  .stat-card.green { background:linear-gradient(135deg,#065f46,#10b981); color:#fff; }
+  .stat-card.red   { background:linear-gradient(135deg,#7f1d1d,#ef4444); color:#fff; }
+  .stat-card.purple{ background:linear-gradient(135deg,#4c1d95,#8b5cf6); color:#fff; }
+  .stat-card.amber { background:linear-gradient(135deg,#78350f,#f59e0b); color:#fff; }
+  .stat-card.teal  { background:linear-gradient(135deg,#134e4a,#14b8a6); color:#fff; }
+
+  /* 진행률 바 */
+  .wm-progress-wrap { background:rgba(255,255,255,.2); border-radius:4px; height:5px; margin-top:8px; }
+  .wm-progress-bar  { background:#fff; border-radius:4px; height:5px; transition:width .5s; }
+
+  /* ── 차트 카드 ── */
+  .chart-card { border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.07); padding:18px 20px; }
+  .chart-title { font-size:.85rem; font-weight:700; color:#374151; margin-bottom:12px; }
+
+  /* ── 캘린더 ── */
+  .cal-header { display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
+    font-size:.72rem; font-weight:700; color:#6b7280; margin-bottom:4px; }
+  .cal-dh { padding:4px 0; }
+  .cal-body  { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-cell  { min-height:54px; border-radius:8px; padding:5px 6px;
+    background:#f9fafb; position:relative; }
+  .cal-cell.today   { background:#dbeafe; }
+  .cal-cell.has-ev  { cursor:pointer; }
+  .cal-cell.has-ev:hover { background:#ede9fe; }
+  .cal-cell.empty   { background:transparent; }
+  .cal-day  { font-size:.78rem; font-weight:600; color:#374151; }
+  .cal-cell.today .cal-day { color:#1d4ed8; font-weight:800; }
+  .cal-ev { font-size:.65rem; line-height:1.3; margin-top:3px; border-radius:4px;
+    padding:1px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-ev.deadline { background:#fef3c7; color:#92400e; border-left:2px solid #f59e0b; }
+  .cal-ev.survey   { background:#d1fae5; color:#065f46; border-left:2px solid #10b981; }
 </style>
 {% endblock %}
 
@@ -22,55 +64,172 @@
   <small class="text-muted">기준일: {{ summary.기준일 }}</small>
 </div>
 
+{# ── 1. 스탯 카드 3개 + 마감 노트 카드 ── #}
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
-    <div class="card p-3 text-center">
-      <div class="text-muted small">전체 매칭</div>
-      <div class="stat-num text-primary">{{ summary.총원 }}</div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card blue" onclick="location.href='/employees'">
+      <div class="stat-icon">👥</div>
+      <div class="stat-label">전체 재직인원</div>
+      <div class="stat-num">{{ total_employees }}</div>
+      <div class="stat-sub">평균 재직 {{ avg_tenure.text }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3 text-center">
-      <div class="text-muted small">재직 중</div>
-      <div class="stat-num text-success">{{ summary.재직중 }}</div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card green" onclick="showDetailCard('이번달 입사자', 'hires', '{{ today_ym }}')">
+      <div class="stat-icon">🆕</div>
+      <div class="stat-label">이번달 입사</div>
+      <div class="stat-num">{{ this_month_hires|length }}</div>
+      <div class="stat-sub">{{ today_ym }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3 text-center">
-      <div class="text-muted small">마감 임박 (D-{{ summary.alert_days }})</div>
-      <div class="stat-num text-warning">{{ summary.마감_임박 }}</div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card red" onclick="showDetailCard('이번달 퇴사자', 'resigned', '{{ today_ym }}')">
+      <div class="stat-icon">📤</div>
+      <div class="stat-label">이번달 퇴사</div>
+      <div class="stat-num">{{ this_month_resigned|length }}</div>
+      <div class="stat-sub">{{ today_ym }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3 text-center">
-      <div class="text-muted small">서베이 임박 (D-{{ summary.alert_days }})</div>
-      <div class="stat-num text-info">{{ summary.서베이_임박 }}</div>
+
+  {# ── 마감 임박 노트 카드 ── #}
+  <div class="col-12 col-lg-6">
+    <div class="card h-100 p-3" style="border-left:4px solid #f59e0b;background:#fffbeb;">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="font-size:1rem">📌</span>
+        <span style="font-weight:700;font-size:.85rem;color:#92400e">마감 임박 (D-30 이내)</span>
+        {% if upcoming %}
+        <span class="badge bg-warning text-dark ms-auto" style="font-size:.72rem">{{ upcoming|length }}건</span>
+        {% endif %}
+      </div>
+      {% if upcoming %}
+      <div style="max-height:110px;overflow-y:auto;">
+        {% for u in upcoming %}
+        <div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #fde68a;font-size:.8rem">
+          <span style="min-width:28px;text-align:center;font-weight:700;
+            color:{% if u.잔여일 <= 7 %}#dc2626{% elif u.잔여일 <= 14 %}#d97706{% else %}#65a30d{% endif %}">
+            D-{{ u.잔여일 }}
+          </span>
+          <span style="color:#1f2937;font-weight:600">{{ u.이름 }}</span>
+          <span class="badge" style="font-size:.65rem;background:{% if u.종류=='마감월' %}#dbeafe;color:#1e40af{% else %}#d1fae5;color:#065f46{% endif %}">
+            {{ u.종류 }}
+          </span>
+          <span class="text-muted ms-auto">{{ u.날짜 }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-muted" style="font-size:.8rem">D-30 이내 마감 예정 없음</div>
+      {% endif %}
     </div>
   </div>
 </div>
 
-{% if 소속_count %}
-<div class="card p-3 mb-4">
-  <div class="fw-bold mb-2" style="font-size:.9rem">📈 소속별 신규입사자 현황</div>
-  <canvas id="소속Chart" height="80"></canvas>
+{# ── 배정 대기 배너 ── #}
+{% if pending_wellmates %}
+<div class="card mb-4 border-warning" style="border-width:2px!important">
+  <div class="card-header d-flex justify-content-between align-items-center py-2"
+       style="background:#fffbeb;border-bottom:1px solid #fde68a">
+    <span style="font-weight:700;color:#92400e">
+      ⏳ 웰메이트 배정 대기 — {{ pending_wellmates|length }}명
+    </span>
+    <small class="text-muted">웰메이트가 배정되지 않은 신규입사자 목록입니다.</small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>신규입사자</th><th>직책</th><th>소속</th><th>부서/팀</th><th>입사일</th><th>등록일</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pending_wellmates %}
+        <tr>
+          <td><strong>{{ p.신규입사자명 or p.멘티_사번 or '-' }}</strong></td>
+          <td>{{ p.직책 or '-' }}</td>
+          <td class="text-muted">{{ p.소속 or '-' }}</td>
+          <td class="text-muted">{{ p.부서팀 or '-' }}</td>
+          <td class="text-muted">{{ p.입사일 or '-' }}</td>
+          <td class="text-muted small">{{ (p.생성일 or '')[:10] }}</td>
+          <td>
+            <a href="/wellmate/edit/{{ p.id }}" class="btn btn-warning btn-sm py-0">웰메이트 배정</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 
-<div class="d-flex gap-3 mb-2" style="font-size:.78rem;color:#6c757d">
+{# ── 2. 차트 3개 ── #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="chart-card h-100 d-flex flex-column">
+      <div class="chart-title">📈 월별 입사 / 퇴사 추이 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭하면 해당 월 명단)</span></div>
+      <div class="flex-grow-1 d-flex align-items-center">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3">
+    <div class="chart-card h-100 d-flex flex-column">
+      <div class="chart-title">🏢 소속별 재직 인원 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
+      <div class="flex-grow-1 d-flex align-items-center">
+        <canvas id="sokcheolChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3">
+    <div class="chart-card h-100 d-flex flex-column">
+      <div class="chart-title">👔 직책별 구성 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
+      <div class="flex-grow-1 d-flex align-items-center">
+        <canvas id="jikchekChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── 3. 마감일 캘린더 ── #}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="chart-card">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="chart-title mb-0">📅 웰메이트 마감일 캘린더</div>
+        <div class="d-flex align-items-center gap-2">
+          <span style="font-size:.72rem;color:#6b7280">
+            <span class="cal-dot deadline d-inline-block me-1"></span>마감
+            <span class="cal-dot survey d-inline-block ms-2 me-1"></span>서베이
+          </span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="prevMonth()">◀</button>
+          <strong id="calTitle" style="min-width:90px;text-align:center;font-size:.9rem"></strong>
+          <button class="btn btn-sm btn-outline-secondary" onclick="nextMonth()">▶</button>
+        </div>
+      </div>
+      <div class="cal-header">
+        <div class="cal-dh">일</div><div class="cal-dh">월</div><div class="cal-dh">화</div>
+        <div class="cal-dh">수</div><div class="cal-dh">목</div><div class="cal-dh">금</div>
+        <div class="cal-dh">토</div>
+      </div>
+      <div id="calGrid" class="cal-body"></div>
+    </div>
+  </div>
+</div>
+
+{# ── 3. 웰메이트 테이블 ── #}
+<div class="d-flex gap-3 mb-2 flex-wrap align-items-center" style="font-size:.78rem;color:#6c757d">
   <span><span style="display:inline-block;width:10px;height:10px;background:#fee2e2;border-radius:2px;margin-right:3px"></span>마감+서베이 임박</span>
   <span><span style="display:inline-block;width:10px;height:10px;background:#fef3c7;border-radius:2px;margin-right:3px"></span>마감 임박</span>
   <span><span style="display:inline-block;width:10px;height:10px;background:#d1fae5;border-radius:2px;margin-right:3px"></span>서베이 임박</span>
   <a href="/wellmate/new" class="ms-auto btn btn-primary btn-sm">+ 매칭 등록</a>
 </div>
-
 <div class="card mb-4">
   <div class="table-responsive">
     <table class="table table-hover table-bordered mb-0 align-middle">
       <thead>
         <tr>
           <th rowspan="2" class="text-center align-middle" style="width:36px">#</th>
-          <th colspan="3" class="text-center mentor">🧑‍💼 웰메이트 (멘토)</th>
-          <th colspan="4" class="text-center mentee">🌱 신규입사자 (멘티)</th>
+          <th colspan="3" class="text-center mentor">🧑‍💼 웰메이트</th>
+          <th colspan="4" class="text-center mentee">🌱 신규입사자</th>
           <th colspan="4" class="text-center date">📅 일정</th>
           <th rowspan="2" class="text-center align-middle">재직</th>
           <th rowspan="2" class="text-center align-middle">관리</th>
@@ -132,30 +291,308 @@
     </table>
   </div>
 </div>
+
+{# ── 세부내역 모달 ── #}
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold" id="detailModalLabel">세부내역</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" id="detailModalBody">
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-{% if 소속_count %}
 <script>
-const labels = {{ 소속_count.keys() | list | tojson }};
-const data   = {{ 소속_count.values() | list | tojson }};
-new Chart(document.getElementById("소속Chart"), {
-  type: "bar",
+/* ── 차트 데이터 ── */
+const monthlyHires    = {{ monthly_hires | tojson }};
+const monthlyResigned = {{ monthly_resigned | tojson }};
+const sokcheolDist    = {{ 소속_dist | tojson }};
+const jikchekDist     = {{ 직책_dist | tojson }};
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#6366f1','#84cc16','#f97316'];
+
+/* ── 월별 꺾은선 차트 ── */
+const mLabels = monthlyHires.map(d => d.month);
+const mHires  = monthlyHires.map(d => d.count);
+const mResign = monthlyResigned.map(d => d.count);
+
+const monthlyChart = new Chart(document.getElementById("monthlyChart"), {
+  type: "line",
   data: {
-    labels: labels,
-    datasets: [{
-      label: "신규입사자 수",
-      data: data,
-      backgroundColor: "rgba(26,86,219,0.7)",
-      borderRadius: 6,
-    }]
+    labels: mLabels,
+    datasets: [
+      { label:"입사", data: mHires, borderColor:"#3b82f6", backgroundColor:"rgba(59,130,246,.1)",
+        tension:.35, fill:true, pointRadius:4, pointHoverRadius:6 },
+      { label:"퇴사", data: mResign, borderColor:"#ef4444", backgroundColor:"rgba(239,68,68,.08)",
+        tension:.35, fill:true, pointRadius:4, pointHoverRadius:6 },
+    ]
   },
   options: {
     responsive: true,
-    plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    interaction: { mode:"index", intersect:false },
+    plugins: {
+      legend: { position:"top", labels:{ boxWidth:12, font:{size:11} } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}명` } }
+    },
+    scales: { y: { beginAtZero:true, ticks:{ stepSize:1 } } },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const idx  = elements[0].index;
+      const dsIdx = elements[0].datasetIndex;
+      const month = mLabels[idx];
+      if (dsIdx === 0) showDetailCard(month + ' 입사자', 'hires', month);
+      else             showDetailCard(month + ' 퇴사자', 'resigned', month);
+    },
+    onHover(event, elements) {
+      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+    }
   }
 });
+
+/* ── 소속별 도넛 차트 ── */
+const sLabels = sokcheolDist.map(d => d["소속"]);
+const sCounts = sokcheolDist.map(d => d.count);
+
+const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
+  type: "doughnut",
+  data: {
+    labels: sLabels,
+    datasets: [{ data: sCounts, backgroundColor: COLORS, borderWidth:2, hoverOffset:6 }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
+    },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const name = sLabels[elements[0].index];
+      showDetailCard(name + ' 소속 재직자', 'sokcheol', name);
+    },
+    onHover(event, elements) {
+      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+    }
+  }
+});
+
+/* ── 직책별 도넛 차트 ── */
+const jLabels = jikchekDist.map(d => d["직책"]);
+const jCounts = jikchekDist.map(d => d.count);
+
+new Chart(document.getElementById("jikchekChart"), {
+  type: "doughnut",
+  data: {
+    labels: jLabels,
+    datasets: [{ data: jCounts,
+      backgroundColor: COLORS.slice().reverse(),
+      borderWidth:2, hoverOffset:6 }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
+    },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const cat = jLabels[elements[0].index];
+      showDetailCard(cat + ' 직원 목록', 'jikchek', cat);
+    },
+    onHover(event, elements) {
+      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+    }
+  }
+});
+
+/* ── 캘린더 ── */
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+let calEvents = {};
+
+function loadCalendar(y, m) {
+  calYear = y; calMonth = m;
+  document.getElementById('calTitle').textContent = `${y}년 ${m}월`;
+  fetch(`/api/calendar/${y}/${m}`)
+    .then(r => r.json())
+    .then(events => {
+      calEvents = {};
+      events.forEach(e => {
+        if (!calEvents[e.date]) calEvents[e.date] = [];
+        calEvents[e.date].push(e);
+      });
+      renderCalendar(y, m);
+    });
+}
+
+function renderCalendar(y, m) {
+  const firstDay  = new Date(y, m-1, 1).getDay();
+  const lastDate  = new Date(y, m, 0).getDate();
+  const todayStr  = new Date().toISOString().split('T')[0];
+  let html = '';
+  for (let i = 0; i < firstDay; i++)
+    html += '<div class="cal-cell empty"></div>';
+  for (let d = 1; d <= lastDate; d++) {
+    const ds = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const evs = calEvents[ds] || [];
+    const isToday = ds === todayStr;
+    let evHtml = '';
+    evs.forEach(e => {
+      const cls = e.type === '마감' ? 'deadline' : 'survey';
+      const team = e.팀 ? `(${e.팀})` : '';
+      evHtml += `<div class="cal-ev ${cls}" title="${e.멘토} & ${e.멘티}${team} [${e.type}]">${e.멘토}&amp;${e.멘티}${team}</div>`;
+    });
+    html += `<div class="cal-cell${isToday?' today':''}">
+      <span class="cal-day">${d}</span>
+      ${evHtml}
+    </div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function prevMonth() {
+  calMonth--; if (calMonth===0){calMonth=12;calYear--;} loadCalendar(calYear,calMonth);
+}
+function nextMonth() {
+  calMonth++; if (calMonth===13){calMonth=1;calYear++;} loadCalendar(calYear,calMonth);
+}
+
+loadCalendar(calYear, calMonth);
+
+/* ── 세부내역 모달 공통 ── */
+const detailModal = new bootstrap.Modal(document.getElementById("detailModal"));
+
+function showDetailCard(title, type, param) {
+  document.getElementById("detailModalLabel").textContent = title;
+  document.getElementById("detailModalBody").innerHTML =
+    '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+  detailModal.show();
+
+  let url;
+  if (type === 'hires')        url = `/api/dashboard/hires/${param}`;
+  else if (type === 'resigned') url = `/api/dashboard/resigned/${param}`;
+  else if (type === 'sokcheol') url = `/api/dashboard/by-sokcheol?name=${encodeURIComponent(param)}`;
+  else if (type === 'jikchek') url = `/api/dashboard/by-jikchek?cat=${encodeURIComponent(param)}`;
+  else if (type === 'wm-incomplete') url = `/api/dashboard/wm-incomplete`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => renderDetail(type, data))
+    .catch(() => {
+      document.getElementById("detailModalBody").innerHTML =
+        '<div class="text-center text-danger py-4">데이터를 불러오지 못했습니다.</div>';
+    });
+}
+
+function renderDetail(type, data) {
+  const body = document.getElementById("detailModalBody");
+  if (!data.length) {
+    body.innerHTML = '<div class="text-center text-muted py-5">해당 데이터가 없습니다.</div>';
+    return;
+  }
+
+  let cols, rows;
+  if (type === 'hires') {
+    cols = ['사번','이름','직책','소속','본부','부서/팀','입사일'];
+    rows = data.map(e => [e.사번||'', e.이름||'', e.직책||'-', e.소속||'-', e.본부||'-', e.부서팀||'-', e.입사일||'-']);
+  } else if (type === 'resigned') {
+    cols = ['사번','이름','직책','소속','본부','부서/팀','입사일','퇴사일'];
+    rows = data.map(e => [e.사번||'', e.이름||'', e.직책||'-', e.소속||'-', e.본부||'-', e.부서팀||'-', e.입사일||'-', e.퇴사일||'-']);
+  } else if (type === 'sokcheol') {
+    cols = ['사번','이름','직책','본부','그룹','부서/팀','입사일'];
+    rows = data.map(e => [e.사번||'', e.이름||'', e.직책||'-', e.본부||'-', e.그룹||'-', e.부서팀||'-', e.입사일||'-']);
+  } else if (type === 'jikchek') {
+    cols = ['사번','이름','직책','소속','본부','그룹','부서/팀','입사일'];
+    rows = data.map(e => [e.사번||'', e.이름||'', e.직책||'-', e.소속||'-', e.본부||'-', e.그룹||'-', e.부서팀||'-', e.입사일||'-']);
+  } else if (type === 'wm-incomplete') {
+    cols = ['웰메이트','신규입사자','소속','마감월','잔여일','메모'];
+    rows = data.map(r => {
+      const dl = r.마감_잔여일 !== null
+        ? (r.마감_잔여일 <= 7 ? `★D-${r.마감_잔여일}` : r.마감_잔여일 + '일') : '-';
+      return [r.멘토_이름||'', r.멘티_이름||'-', r.멘티_소속||'-', r.마감월||'-', dl, r.메모||''];
+    });
+  }
+
+  let html = `<div class="px-3 pt-2 pb-1">
+    <input type="text" id="detailFilter" class="form-control form-control-sm"
+      placeholder="전체 검색 (이름, 직책, 소속 등)" oninput="filterDetailRows(this.value)">
+  </div>
+  <div class="table-responsive">
+  <table class="table table-hover table-sm mb-0 align-middle" id="detailTable">
+  <thead class="table-light"><tr>`;
+  cols.forEach((c,i) => {
+    html += `<th style="cursor:pointer;user-select:none;white-space:nowrap"
+      onclick="sortDetailTable(${i})" title="${c} 기준 정렬">
+      ${c} <span class="sort-icon text-muted" style="font-size:.7rem">⇅</span></th>`;
+  });
+  html += `</tr>
+  <tr id="colFilterRow">`;
+  cols.forEach(() => {
+    html += `<th style="padding:2px 4px"><input type="text" class="form-control form-control-sm col-filter"
+      placeholder="필터" oninput="filterDetailCols()" style="min-width:50px;font-size:.72rem"></th>`;
+  });
+  html += `</tr></thead><tbody id="detailTbody">`;
+
+  rows.forEach(r => {
+    html += '<tr>' + r.map((v,i) => {
+      const cls = i===0 ? ' class="text-muted small"' : i===1 ? ' class="fw-semibold"' : ' class="text-muted"';
+      return `<td${cls}>${v}</td>`;
+    }).join('') + '</tr>';
+  });
+  html += `</tbody></table></div>
+    <div class="px-3 py-2 text-muted" style="font-size:.78rem" id="detailCount">총 ${rows.length}건</div>`;
+  body.innerHTML = html;
+}
+
+let _sortDir = {};
+function sortDetailTable(colIdx) {
+  const tbody = document.getElementById("detailTbody");
+  if (!tbody) return;
+  const dir = (_sortDir[colIdx] === 'asc') ? 'desc' : 'asc';
+  _sortDir = {}; _sortDir[colIdx] = dir;
+  const trs = Array.from(tbody.querySelectorAll("tr"));
+  trs.sort((a, b) => {
+    const av = a.cells[colIdx]?.textContent.trim() || '';
+    const bv = b.cells[colIdx]?.textContent.trim() || '';
+    return dir === 'asc' ? av.localeCompare(bv, 'ko') : bv.localeCompare(av, 'ko');
+  });
+  trs.forEach(tr => tbody.appendChild(tr));
+  updateDetailCount();
+}
+
+function filterDetailRows(q) {
+  const filters = Array.from(document.querySelectorAll('.col-filter')).map(i => i.value.toLowerCase());
+  q = q.toLowerCase();
+  const trs = document.querySelectorAll("#detailTbody tr");
+  let visible = 0;
+  trs.forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    const cells = Array.from(tr.cells);
+    const colMatch = filters.every((f, i) => !f || (cells[i]?.textContent.toLowerCase().includes(f)));
+    const globalMatch = !q || text.includes(q);
+    const show = colMatch && globalMatch;
+    tr.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const el = document.getElementById("detailCount");
+  if (el) el.textContent = `총 ${visible}건 표시 중`;
+}
+
+function filterDetailCols() {
+  const q = (document.getElementById("detailFilter")?.value || '').toLowerCase();
+  filterDetailRows(q);
+}
+
+function updateDetailCount() {
+  const total = document.querySelectorAll("#detailTbody tr:not([style*='none'])").length;
+  const el = document.getElementById("detailCount");
+  if (el) el.textContent = `총 ${total}건 표시 중`;
+}
 </script>
-{% endif %}
 {% endblock %}

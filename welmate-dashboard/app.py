@@ -154,6 +154,16 @@ def index():
         "기준일": today_str,
         "alert_days": ALERT_DAYS,
     }
+    # 마감 임박 통합 목록 (마감월 + 엔드서베이, D-30 이내, 날짜순 정렬)
+    upcoming = []
+    for r in records:
+        mentee_name = (r.get("멘티") or {}).get("이름") or r.get("멘티_사번") or "-"
+        if r["마감_잔여일"] is not None and 0 <= r["마감_잔여일"] <= 30:
+            upcoming.append({"이름": mentee_name, "종류": "마감월", "날짜": r["마감월"], "잔여일": r["마감_잔여일"]})
+        if r["서베이_잔여일"] is not None and 0 <= r["서베이_잔여일"] <= 30:
+            upcoming.append({"이름": mentee_name, "종류": "엔드서베이", "날짜": r["엔드서베이"], "잔여일": r["서베이_잔여일"]})
+    upcoming.sort(key=lambda x: x["잔여일"])
+
     return render_template("index.html",
         records=records, summary=summary, 소속_count=소속_count,
         total_employees=total_employees,
@@ -168,6 +178,7 @@ def index():
         wm_incomplete=wm_incomplete,
         today_ym=today_ym,
         pending_wellmates=pending_wellmates,
+        upcoming=upcoming,
     )
 
 
