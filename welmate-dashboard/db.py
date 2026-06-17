@@ -51,6 +51,10 @@ def init_db():
             메모 TEXT,
             생성일 TEXT DEFAULT (date('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS budget_checks (
+            ym TEXT PRIMARY KEY
+        );
     """)
     # 기존 DB에 컬럼 추가 (마이그레이션)
     for col, default in [("상태", "'재직'"), ("퇴사일", "NULL"), ("메모", "NULL")]:
@@ -603,3 +607,22 @@ def export_to_excel(path: str):
             cell = ws.cell(row=1, column=1)
             cell.font = gray_font
             cell.fill = gray_fill
+
+
+def is_budget_checked(ym: str) -> bool:
+    conn = get_conn()
+    row = conn.execute("SELECT 1 FROM budget_checks WHERE ym=?", (ym,)).fetchone()
+    conn.close()
+    return row is not None
+
+def set_budget_checked(ym: str):
+    conn = get_conn()
+    conn.execute("INSERT OR IGNORE INTO budget_checks (ym) VALUES (?)", (ym,))
+    conn.commit()
+    conn.close()
+
+def unset_budget_checked(ym: str):
+    conn = get_conn()
+    conn.execute("DELETE FROM budget_checks WHERE ym=?", (ym,))
+    conn.commit()
+    conn.close()
