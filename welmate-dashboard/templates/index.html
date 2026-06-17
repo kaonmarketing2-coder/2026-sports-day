@@ -686,8 +686,7 @@ function updateNoteCardUI(id, completed) {
   if (completed) {
     el.style.opacity = '0.4';
     el.style.textDecoration = 'line-through';
-    const btn = el.querySelector('button');
-    if (btn) btn.textContent = '✓';
+    setTimeout(() => el.remove(), 400);
   } else {
     el.style.opacity = '';
     el.style.textDecoration = '';
