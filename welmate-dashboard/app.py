@@ -22,8 +22,9 @@ def _auto_export():
         return
     try:
         export_to_excel(EXCEL_EXPORT_PATH)
+        print(f"[엑셀 저장 완료] {EXCEL_EXPORT_PATH}")
     except Exception as e:
-        app.logger.warning(f"엑셀 자동 저장 실패: {e}")
+        print(f"[엑셀 저장 실패] {e}")
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -235,9 +236,14 @@ def employees():
 @login_required
 def employee_add():
     if request.method == "POST":
+        이름 = request.form["이름"].strip()
+        existing = [e for e in get_all_employees(include_resigned=True) if e["이름"] == 이름]
+        if existing:
+            flash(f"이미 '{이름}' 이름의 직원이 존재합니다 (사번: {existing[0]['사번']}). 동명이인은 등록할 수 없습니다.", "danger")
+            return render_template("employee_form.html", emp={"이름": 이름, **{k: request.form.get(k,"") for k in ["사번","직책","소속","본부","그룹","부서팀","파트","입사일","메모"]}}, mode="add")
         add_employee({
             "사번": request.form["사번"].strip(),
-            "이름": request.form["이름"].strip(),
+            "이름": 이름,
             "소속": request.form.get("소속", ""),
             "직책": request.form.get("직책", ""),
             "본부": request.form.get("본부", ""),

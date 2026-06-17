@@ -30,7 +30,9 @@
       </div>
       <div class="col-6">
         <label class="form-label fw-semibold">이름 <span class="text-danger">*</span></label>
-        <input type="text" name="이름" id="f_이름" class="form-control" required value="{{ emp.이름 if emp else '' }}">
+        <input type="text" name="이름" id="f_이름" class="form-control" required value="{{ emp.이름 if emp else '' }}"
+               oninput="checkDuplicateName(this.value)">
+        <div id="nameWarn" class="text-danger mt-1" style="font-size:.78rem;display:none"></div>
       </div>
 
       <div class="col-6">
@@ -161,5 +163,27 @@ function validateForm() {
 document.querySelectorAll(".form-control").forEach(el => {
   el.addEventListener("input", () => el.classList.remove("is-invalid"));
 });
+
+// 이름 중복 실시간 체크 (추가 모드만)
+let nameTimer;
+function checkDuplicateName(val) {
+  if (MODE !== "add") return;
+  clearTimeout(nameTimer);
+  const warn = document.getElementById("nameWarn");
+  if (!val.trim()) { warn.style.display = "none"; return; }
+  nameTimer = setTimeout(() => {
+    fetch("/api/search?q=" + encodeURIComponent(val.trim()))
+      .then(r => r.json())
+      .then(list => {
+        const exact = list.filter(e => e["이름"] === val.trim());
+        if (exact.length) {
+          warn.textContent = `⚠️ 이미 '${val.trim()}' 이름의 직원이 있습니다 (사번: ${exact[0]["사번"]})`;
+          warn.style.display = "block";
+        } else {
+          warn.style.display = "none";
+        }
+      });
+  }, 300);
+}
 </script>
 {% endblock %}
