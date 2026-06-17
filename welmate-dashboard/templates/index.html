@@ -293,7 +293,7 @@
             {% if r.멘티 and r.멘티.부서팀 %}{{ r.멘티.부서팀 }}{% if r.멘티.파트 %} ({{ r.멘티.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
           <td class="text-muted">{{ r.멘티.입사일 if r.멘티 else "-" }}</td>
-          <td>{{ r.마감월 or "-" }}</td>
+          <td>{{ r.마감월[:7] if r.마감월 else "-" }}</td>
           <td class="text-center">
             {% if r.마감_잔여일 is not none %}
               {% if r.마감_임박 %}<span class="badge bg-warning text-dark badge-d">D-{{ r.마감_잔여일 }}</span>
@@ -650,31 +650,16 @@ function updateDetailCount() {
   if (el) el.textContent = `총 ${total}건 표시 중`;
 }
 
-/* ── 엔드서베이 완료 체크 (노트 카드용) ── */
-function checkSurvey(id) {
-  fetch(`/api/survey-check/${id}`, {method: "POST"})
-    .then(r => r.json())
-    .then(data => {
-      if (data.completed) {
-        const el = document.getElementById(`si-${id}`);
-        if (el) {
-          el.style.opacity = "0.4";
-          el.style.textDecoration = "line-through";
-          setTimeout(() => el.remove(), 600);
-        }
-      }
-      // 테이블 행도 동기화
-      updateSurveyRowUI(id, data.completed);
-    });
-}
+/* ── 엔드서베이 완료 토글 (노트카드 + 테이블 공통) ── */
+function checkSurvey(id)       { _toggleSurvey(id); }  // 노트카드 체크박스
+function toggleSurveyRow(id)   { _toggleSurvey(id); }  // 테이블 체크박스
 
-/* ── 엔드서베이 완료 토글 (테이블 행용) ── */
-function toggleSurveyRow(id, btn) {
+function _toggleSurvey(id) {
   fetch(`/api/survey-check/${id}`, {method: "POST"})
     .then(r => r.json())
     .then(data => {
       updateSurveyRowUI(id, data.completed);
-      // 노트 카드에서도 제거/복원은 페이지 새로고침으로 반영
+      updateNoteCardUI(id, data.completed);
     });
 }
 
@@ -692,6 +677,22 @@ function updateSurveyRowUI(id, completed) {
     if (span) { span.style.textDecoration = ''; span.style.color = ''; }
     if (btn)  { btn.textContent = '☐'; btn.title = '완료 체크'; }
     if (ddayCell) ddayCell.innerHTML = '-';
+  }
+}
+
+function updateNoteCardUI(id, completed) {
+  const el = document.getElementById(`si-${id}`);
+  if (!el) return;
+  if (completed) {
+    el.style.opacity = '0.4';
+    el.style.textDecoration = 'line-through';
+    const btn = el.querySelector('button');
+    if (btn) btn.textContent = '✓';
+  } else {
+    el.style.opacity = '';
+    el.style.textDecoration = '';
+    const btn = el.querySelector('button');
+    if (btn) btn.textContent = '☐';
   }
 }
 
