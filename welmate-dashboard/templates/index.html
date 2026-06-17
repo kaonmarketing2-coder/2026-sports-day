@@ -165,16 +165,17 @@
     <table class="table table-sm table-hover mb-0 align-middle">
       <thead class="table-light">
         <tr>
-          <th>신규입사자</th><th>직책</th><th>소속</th><th>부서/팀</th><th>입사일</th><th>등록일</th><th></th>
+          <th>신규입사자</th><th>직책 · 부서/팀</th><th>입사일</th><th>등록일</th><th></th>
         </tr>
       </thead>
       <tbody>
         {% for p in pending_wellmates %}
         <tr>
           <td><strong>{{ p.신규입사자명 or p.멘티_사번 or '-' }}</strong></td>
-          <td>{{ p.직책 or '-' }}</td>
-          <td class="text-muted">{{ p.소속 or '-' }}</td>
-          <td class="text-muted">{{ p.부서팀 or '-' }}</td>
+          <td class="text-muted" style="font-size:.8rem">
+            {{ p.직책 or '-' }}
+            {% if p.부서팀 %}<br><span style="font-size:.75rem">{{ p.부서팀 }}</span>{% endif %}
+          </td>
           <td class="text-muted">{{ p.입사일 or '-' }}</td>
           <td class="text-muted small">{{ (p.생성일 or '')[:10] }}</td>
           <td>
@@ -262,8 +263,8 @@
           <th rowspan="2" class="text-center align-middle">관리</th>
         </tr>
         <tr>
-          <th class="mentor">이름</th><th class="mentor">직책</th><th class="mentor">부서/팀</th>
-          <th class="mentee">이름</th><th class="mentee">직책</th><th class="mentee">소속</th><th class="mentee">입사일</th>
+          <th class="mentor">이름</th><th class="mentor">직책 · 부서/팀</th>
+          <th class="mentee">이름</th><th class="mentee">직책 · 부서/팀</th><th class="mentee">입사일</th>
           <th class="date">마감월</th><th class="date">잔여</th>
           <th class="date">엔드서베이</th><th class="date">잔여</th>
         </tr>
@@ -278,11 +279,19 @@
         <tr class="{{ rc }}">
           <td class="text-center text-muted">{{ loop.index }}</td>
           <td><strong>{{ r.멘토_이름 }}</strong></td>
-          <td>{{ r.멘토.직책 if r.멘토 else "-" }}</td>
-          <td class="text-muted">{{ r.멘토.부서팀 if r.멘토 else "-" }}</td>
+          <td class="text-muted" style="font-size:.8rem">
+            {% if r.멘토 %}
+              {{ r.멘토.직책 or "-" }}
+              {% if r.멘토.부서팀 %}<br><span style="font-size:.75rem">{{ r.멘토.부서팀 }}{% if r.멘토.파트 %} ({{ r.멘토.파트 }}){% endif %}</span>{% endif %}
+            {% else %}-{% endif %}
+          </td>
           <td>{{ r.멘티.이름 if r.멘티 else "-" }}</td>
-          <td>{{ r.멘티.직책 if r.멘티 else "-" }}</td>
-          <td class="text-muted">{{ r.멘티.소속 if r.멘티 else "-" }}</td>
+          <td class="text-muted" style="font-size:.8rem">
+            {% if r.멘티 %}
+              {{ r.멘티.직책 or "-" }}
+              {% if r.멘티.부서팀 %}<br><span style="font-size:.75rem">{{ r.멘티.부서팀 }}{% if r.멘티.파트 %} ({{ r.멘티.파트 }}){% endif %}</span>{% endif %}
+            {% else %}-{% endif %}
+          </td>
           <td class="text-muted">{{ r.멘티.입사일 if r.멘티 else "-" }}</td>
           <td>{{ r.마감월 or "-" }}</td>
           <td class="text-center">
