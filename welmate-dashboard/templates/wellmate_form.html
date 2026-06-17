@@ -6,6 +6,13 @@
   .info-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; font-size:.85rem; }
   .info-label { color:#64748b; font-size:.75rem; }
   .autofill-badge { font-size:.7rem; background:#dbeafe; color:#1e40af; border-radius:4px; padding:1px 6px; }
+  .email-preview {
+    background:#fff; border:1px solid #d1d5db; border-radius:8px;
+    padding:16px 18px; font-size:.82rem; line-height:1.8; color:#1f2937;
+    white-space: pre-wrap; font-family: inherit;
+  }
+  .email-field { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .email-field label { font-size:.78rem; color:#6b7280; min-width:60px; font-weight:600; }
 </style>
 {% endblock %}
 
@@ -14,19 +21,51 @@
 <div class="col-lg-7">
 
 <div class="page-title">{{ "✏️ 매칭 수정" if mode=="edit" else "➕ 웰메이트 매칭 등록" }}</div>
+{% if mode=="edit" and (not wm.멘토_이름) %}
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <span style="font-size:1.3rem">⏳</span>
+  <div><strong>웰메이트 미배정 상태입니다.</strong><br>
+  <small>웰메이트 이름을 입력하고 저장하면 정식 매칭으로 등록됩니다.</small></div>
+</div>
+
+{# ── 이메일 초안 ── #}
+{% if mentee_emp %}
+<div class="card p-4 mb-3" style="border-left:4px solid #3b82f6">
+  <h6 class="fw-bold mb-3">📧 웰메이트 배정 요청 이메일 초안</h6>
+  <div class="email-field">
+    <label>수신</label>
+    <input type="text" id="emailTo" class="form-control form-control-sm" placeholder="팀장님 이메일 주소" style="max-width:280px" oninput="updateMailto()">
+  </div>
+  <div class="email-field">
+    <label>마감일</label>
+    <input type="date" id="emailDeadline" class="form-control form-control-sm" style="max-width:180px" oninput="updateMailto()">
+  </div>
+  <div class="mt-3 mb-2" style="font-size:.75rem;color:#6b7280">미리보기</div>
+  <div class="email-preview" id="emailPreview"></div>
+  <div class="d-flex gap-2 mt-3">
+    <button type="button" class="btn btn-primary btn-sm" onclick="openOutlook()">
+      📨 Outlook에서 열기
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyEmail()">
+      📋 전체 복사
+    </button>
+  </div>
+  <div id="copyDone" class="text-success mt-1" style="font-size:.78rem;display:none">✅ 클립보드에 복사되었습니다.</div>
+</div>
+{% endif %}
+{% endif %}
 
 <form method="POST" id="matchForm">
 
-  <!-- 웰메이트 (멘토) -->
+  <!-- 웰메이트 -->
   <div class="card p-4 mb-3">
-    <h6 class="fw-bold mb-3">🧑‍💼 웰메이트 (멘토)</h6>
+    <h6 class="fw-bold mb-3">🧑‍💼 웰메이트</h6>
     <div class="mb-3">
       <label class="form-label fw-semibold">이름 <span class="text-danger">*</span></label>
       <input type="text" name="멘토_이름" id="mentorName" class="form-control"
-             value="{{ wm.멘토_이름 if wm else '' }}" placeholder="멘토 이름 입력" required>
+             value="{{ wm.멘토_이름 if wm else '' }}" placeholder="웰메이트 이름 입력">
       <div id="mentorSuggestions" class="list-group mt-1" style="position:absolute;z-index:100;width:300px;display:none"></div>
     </div>
-    <!-- 멘토 자동완성 정보 -->
     <div class="info-box" id="mentorInfo" style="{{ 'display:none' if not wm else '' }}">
       <div class="row g-2">
         <div class="col-4"><div class="info-label">직책</div><div id="m_직책">-</div></div>
@@ -36,15 +75,14 @@
     </div>
   </div>
 
-  <!-- 신규입사자 (멘티) -->
+  <!-- 신규입사자 -->
   <div class="card p-4 mb-3">
-    <h6 class="fw-bold mb-3">🌱 신규입사자 (멘티) <span class="autofill-badge">사번 입력 시 자동완성</span></h6>
+    <h6 class="fw-bold mb-3">🌱 신규입사자 <span class="autofill-badge">사번 입력 시 자동완성</span></h6>
     <div class="mb-3">
       <label class="form-label fw-semibold">사번</label>
       <input type="text" name="멘티_사번" id="menteeSabun" class="form-control"
              value="{{ wm.멘티_사번 if wm else '' }}" placeholder="예: k251101">
     </div>
-    <!-- 멘티 자동완성 정보 -->
     <div class="info-box" id="menteeInfo">
       <div class="row g-2">
         <div class="col-4"><div class="info-label">이름</div><div id="t_이름">-</div></div>
@@ -84,6 +122,28 @@
     </div>
   </div>
 
+  <!-- 엔드서베이 이메일 초안 -->
+  {% if mode=="edit" and wm and wm.엔드서베이 and mentee_emp %}
+  <div class="card p-4 mb-3" style="border-left:4px solid #10b981">
+    <h6 class="fw-bold mb-3">📧 엔드서베이 요청 이메일 초안</h6>
+    <div class="email-field">
+      <label>수신</label>
+      <input type="text" id="surveyTo" class="form-control form-control-sm" placeholder="신규입사자 이메일 주소" style="max-width:280px" oninput="updateSurveyPreview()">
+    </div>
+    <div class="mt-3 mb-2" style="font-size:.75rem;color:#6b7280">미리보기</div>
+    <div class="email-preview" id="surveyPreview"></div>
+    <div class="d-flex gap-2 mt-3">
+      <button type="button" class="btn btn-success btn-sm" onclick="openSurveyOutlook()">
+        📨 Outlook에서 열기
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copySurveyEmail()">
+        📋 전체 복사
+      </button>
+    </div>
+    <div id="surveyCopyDone" class="text-success mt-1" style="font-size:.78rem;display:none">✅ 클립보드에 복사되었습니다.</div>
+  </div>
+  {% endif %}
+
   <!-- 메모 -->
   <div class="card p-4 mb-4">
     <h6 class="fw-bold mb-3">📝 메모</h6>
@@ -103,15 +163,76 @@
 
 {% block scripts %}
 <script>
-// 멘티 사번 자동완성
+/* ── 이메일 초안 ── */
+{% if mode=="edit" and (not wm.멘토_이름) and mentee_emp %}
+const EMP = {
+  이름:   "{{ mentee_emp.이름 or '' }}",
+  입사일: "{{ mentee_emp.입사일 or '' }}",
+  소속:   "{{ mentee_emp.소속 or '' }}",
+  부서팀: "{{ mentee_emp.부서팀 or '' }}",
+  직책:   "{{ mentee_emp.직책 or '' }}",
+};
+
+function buildBody(deadline) {
+  const dl = deadline || '____';
+  return `안녕하세요,\n\nBranding&Culture Part 형세희 입니다.\n\n다가오는 ${EMP.입사일}, 설레는 마음으로 가온에 합류하실 신규 입사자의\n웰메이트 후보자(1, 2순위) 선정을 ${dl}까지 부탁드립니다.\n\n[신규 입사자 정보]\n- 이름 : ${EMP.이름}\n- 입사일 : ${EMP.입사일}\n- 소속 : ${EMP.소속}\n- 부서/팀 : ${EMP.부서팀}\n- 직책 : ${EMP.직책}\n\n웰메이트 후보를 선정하신 후 회신 부탁드립니다.\n감사합니다.\n\n형세희 드림`;
+}
+
+function buildSubject() {
+  return `[요청] ${EMP.입사일} 신규 입사자 웰메이트 후보자 선정`;
+}
+
+function updateMailto() {
+  const deadline = document.getElementById('emailDeadline').value;
+  document.getElementById('emailPreview').textContent = buildBody(deadline);
+}
+
+function openOutlook() {
+  const to = document.getElementById('emailTo').value.trim();
+  const deadline = document.getElementById('emailDeadline').value;
+  const subject = encodeURIComponent(buildSubject());
+  const body = encodeURIComponent(buildBody(deadline));
+  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+}
+
+function copyEmail() {
+  const deadline = document.getElementById('emailDeadline').value;
+  const full = `제목: ${buildSubject()}\n\n${buildBody(deadline)}`;
+  navigator.clipboard.writeText(full).then(() => {
+    const el = document.getElementById('copyDone');
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 2000);
+  });
+}
+
+// 초기 미리보기 렌더링
+updateMailto();
+// 기본 마감일: 입사일 1주일 전
+if (EMP.입사일) {
+  const d = new Date(EMP.입사일);
+  d.setDate(d.getDate() - 7);
+  document.getElementById('emailDeadline').value = d.toISOString().split('T')[0];
+  updateMailto();
+}
+{% endif %}
+
+// URL 파라미터로 신규입사자 사번 자동입력
+const urlSabun = new URLSearchParams(location.search).get("sabun");
+if (urlSabun) {
+  const field = document.getElementById("menteeSabun");
+  field.value = urlSabun;
+  fetch("/api/employee/" + urlSabun)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { if (data) fillMentee(data); });
+}
+
+// 신규입사자 사번 자동완성
 document.getElementById("menteeSabun").addEventListener("input", function() {
   const sabun = this.value.trim();
   if (sabun.length < 3) return;
   fetch("/api/employee/" + sabun)
     .then(r => r.ok ? r.json() : null)
-    .then(data => {
-      if (data) fillMentee(data);
-    });
+    .then(data => { if (data) fillMentee(data); });
 });
 
 function fillMentee(data) {
@@ -122,7 +243,7 @@ function fillMentee(data) {
   document.getElementById("t_입사일").textContent = data["입사일"] || "-";
 }
 
-// 멘토 이름 자동완성
+// 웰메이트 이름 자동완성
 let mentorTimer;
 document.getElementById("mentorName").addEventListener("input", function() {
   clearTimeout(mentorTimer);
@@ -162,5 +283,48 @@ function selectMentor(이름, 직책, 소속, 부서팀) {
 document.addEventListener("click", function(e) {
   if (!e.target.closest("#mentorName") && !e.target.closest("#mentorSuggestions")) hideSuggestions();
 });
+
+/* ── 엔드서베이 이메일 초안 ── */
+{% if mode=="edit" and wm and wm.엔드서베이 and mentee_emp %}
+const SURVEY_EMP = {
+  이름:     "{{ mentee_emp.이름 or '' }}",
+  소속:     "{{ mentee_emp.소속 or '' }}",
+  부서팀:   "{{ mentee_emp.부서팀 or '' }}",
+  직책:     "{{ mentee_emp.직책 or '' }}",
+  입사일:   "{{ mentee_emp.입사일 or '' }}",
+};
+const SURVEY_DEADLINE = "{{ wm.엔드서베이 }}";
+
+function buildSurveyBody() {
+  return `안녕하세요 ${SURVEY_EMP.이름}님,\n\nBranding&Culture Part 형세희 입니다.\n\n가온에서의 적응은 잘 하고 계신가요? 어느덧 입사하신 지도 시간이 꽤 흘렀네요.\n\n웰메이트 프로그램 엔드서베이 마감일(${SURVEY_DEADLINE})이 다가오고 있습니다.\n아래 링크를 통해 ${SURVEY_DEADLINE}까지 엔드서베이를 완료해 주시면 감사하겠습니다.\n\n[신규입사자 정보]\n- 이름 : ${SURVEY_EMP.이름}\n- 소속 : ${SURVEY_EMP.소속}\n- 부서/팀 : ${SURVEY_EMP.부서팀}\n- 직책 : ${SURVEY_EMP.직책}\n- 입사일 : ${SURVEY_EMP.입사일}\n\n궁금하신 점이 있으시면 편하게 연락 주세요.\n감사합니다.\n\n형세희 드림`;
+}
+
+function buildSurveySubject() {
+  return `[요청] ${SURVEY_EMP.이름} 엔드서베이 완료 부탁드립니다`;
+}
+
+function updateSurveyPreview() {
+  document.getElementById('surveyPreview').textContent = buildSurveyBody();
+}
+
+function openSurveyOutlook() {
+  const to = document.getElementById('surveyTo').value.trim();
+  const subject = encodeURIComponent(buildSurveySubject());
+  const body = encodeURIComponent(buildSurveyBody());
+  window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+}
+
+function copySurveyEmail() {
+  const full = `제목: ${buildSurveySubject()}\n\n${buildSurveyBody()}`;
+  navigator.clipboard.writeText(full).then(() => {
+    const el = document.getElementById('surveyCopyDone');
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 2000);
+  });
+}
+
+// 초기 미리보기
+updateSurveyPreview();
+{% endif %}
 </script>
 {% endblock %}
