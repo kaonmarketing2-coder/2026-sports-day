@@ -263,6 +263,9 @@
   <button id="toggleDoneBtn" onclick="toggleDoneRows()" class="btn btn-outline-secondary btn-sm ms-2" style="font-size:.75rem">
     ✓ 완료 숨김
   </button>
+  <button id="toggleActivityBtn" onclick="toggleActivityFilter()" class="btn btn-outline-warning btn-sm" style="font-size:.75rem">
+    💰 활동비 표시
+  </button>
   <a href="/wellmate/new" class="ms-auto btn btn-primary btn-sm">+ 매칭 등록</a>
 </div>
 <div class="card mb-4">
@@ -291,7 +294,7 @@
         {% elif r.서베이_임박 %}{% set rc="서베이임박" %}
         {% elif not r.재직중 %}{% set rc="퇴직" %}
         {% else %}{% set rc="" %}{% endif %}
-        <tr class="{{ rc }}{% if r.엔드서베이_완료 %} sv-done{% endif %}">
+        <tr class="{{ rc }}{% if r.엔드서베이_완료 %} sv-done{% endif %}" data-deadline="{{ r.마감월[:7] if r.마감월 else '' }}">
           <td class="text-center text-muted">{{ loop.index }}</td>
           <td><strong>{{ r.멘토_이름 }}</strong></td>
           <td class="text-muted" style="font-size:.8rem">{{ r.멘토.직책 if r.멘토 else "-" }}</td>
@@ -784,6 +787,39 @@ function toggleBudgetCheck() {
     });
 }
 
+/* ── 활동비 필터 토글 ── */
+let activityFilterOn = false;
+function toggleActivityFilter() {
+  activityFilterOn = !activityFilterOn;
+  const btn = document.getElementById('toggleActivityBtn');
+  btn.textContent = activityFilterOn ? '💰 활동비 숨김' : '💰 활동비 표시';
+  btn.className = activityFilterOn
+    ? 'btn btn-warning btn-sm'
+    : 'btn btn-outline-warning btn-sm';
+  btn.style.fontSize = '.75rem';
+  applyActivityFilter();
+}
+function applyActivityFilter() {
+  if (!activityFilterOn) {
+    document.querySelectorAll('tbody tr[data-deadline]').forEach(tr => {
+      tr.style.display = (doneHidden && tr.classList.contains('sv-done')) ? 'none' : '';
+    });
+    return;
+  }
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  document.querySelectorAll('tbody tr[data-deadline]').forEach(tr => {
+    const dl = tr.getAttribute('data-deadline');
+    const inRange = dl && months.includes(dl);
+    if (!inRange) { tr.style.display = 'none'; return; }
+    tr.style.display = (doneHidden && tr.classList.contains('sv-done')) ? 'none' : '';
+  });
+}
+
 /* ── 완료 행 토글 ── */
 let doneHidden = true;
 document.addEventListener('DOMContentLoaded', () => applyDoneFilter());
@@ -796,6 +832,7 @@ function applyDoneFilter() {
   document.querySelectorAll('tr.sv-done').forEach(tr => {
     tr.style.display = doneHidden ? 'none' : '';
   });
+  if (activityFilterOn) applyActivityFilter();
 }
 
 /* ── 입사자 카드 월 탐색 ── */
