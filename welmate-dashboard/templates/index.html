@@ -17,17 +17,19 @@
   .stat-card {
     border-radius: 14px; padding: 18px 20px; cursor: pointer;
     transition: box-shadow .15s, transform .1s; position: relative; overflow: hidden;
+    min-height: 110px; display: flex; flex-direction: column; justify-content: space-between;
   }
   .stat-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.13); transform: translateY(-2px); }
   .stat-card .stat-label { font-size:.75rem; font-weight:600; opacity:.8; letter-spacing:.03em; }
   .stat-card .stat-num   { font-size:2rem; font-weight:800; line-height:1.1; margin:4px 0 2px; }
   .stat-card .stat-sub   { font-size:.72rem; opacity:.75; }
   .stat-card .stat-icon  { position:absolute; right:16px; top:14px; font-size:1.6rem; opacity:.25; }
-  .stat-card.blue  { background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:#fff; }
-  .stat-card.green { background:linear-gradient(135deg,#065f46,#10b981); color:#fff; }
-  .stat-card.red   { background:linear-gradient(135deg,#7f1d1d,#ef4444); color:#fff; }
+  /* KAON CI 색상 적용 */
+  .stat-card.blue  { background:linear-gradient(135deg,#3A3B4D,#5a5c72); color:#fff; }
+  .stat-card.green { background:linear-gradient(135deg,#cc6200,#FF7B0F); color:#fff; }
+  .stat-card.red   { background:linear-gradient(135deg,#2a2b38,#3A3B4D); color:#fff; }
   .stat-card.purple{ background:linear-gradient(135deg,#4c1d95,#8b5cf6); color:#fff; }
-  .stat-card.amber { background:linear-gradient(135deg,#78350f,#f59e0b); color:#fff; }
+  .stat-card.amber { background:linear-gradient(135deg,#cc6200,#FF7B0F); color:#fff; }
   .stat-card.teal  { background:linear-gradient(135deg,#134e4a,#14b8a6); color:#fff; }
 
   /* 진행률 바 */
@@ -56,8 +58,9 @@
   .cal-ev.deadline { background:#fef3c7; color:#92400e; border-left:2px solid #f59e0b; }
   .cal-ev.survey   { background:#d1fae5; color:#065f46; border-left:2px solid #10b981; }
   .cc-cell:hover { background:#fefce8 !important; }
-  .cc-input { font-size:.8rem; border:1px solid #f59e0b; border-radius:4px; padding:1px 5px;
-              width:100px; outline:none; background:#fffbeb; }
+  .cc-input { font-size:.8rem; border:1px solid #FF7B0F; border-radius:4px; padding:1px 5px;
+              width:100px; outline:none; background:#fff8f2; }
+  .cc-cell:hover { background:#fff3e8 !important; }
 </style>
 {% endblock %}
 
@@ -69,32 +72,40 @@
 
 {# ── 1. 스탯 카드 3개 + 마감 노트 카드 ── #}
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="stat-card blue" onclick="location.href='/employees'">
+  <div class="col-6 col-md-4 col-lg-2 d-flex">
+    <div class="stat-card blue w-100" onclick="location.href='/employees'">
       <div class="stat-icon">👥</div>
-      <div class="stat-label">전체 재직인원</div>
-      <div class="stat-num">{{ total_employees }}</div>
-      <div class="stat-sub">평균 재직 {{ avg_tenure.text }}</div>
+      <div>
+        <div class="stat-label">전체 재직인원</div>
+        <div class="stat-num">{{ total_employees }}</div>
+        <div class="stat-sub">평균 재직 {{ avg_tenure.text }}</div>
+      </div>
+      <div></div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="stat-card green" id="hiresCard" onclick="showHiresDetail()" style="cursor:pointer">
+  <div class="col-6 col-md-4 col-lg-2 d-flex">
+    <div class="stat-card green w-100" id="hiresCard" onclick="showHiresDetail()">
       <div class="stat-icon">🆕</div>
-      <div class="stat-label">입사</div>
-      <div class="stat-num" id="hiresNum">{{ this_month_hires|length }}</div>
-      <div class="stat-sub" id="hiresYm">{{ today_ym }}</div>
-      <div class="d-flex justify-content-between mt-2" onclick="event.stopPropagation()">
+      <div>
+        <div class="stat-label">입사</div>
+        <div class="stat-num" id="hiresNum">{{ this_month_hires|length }}</div>
+        <div class="stat-sub" id="hiresYm">{{ today_ym }}</div>
+      </div>
+      <div class="d-flex justify-content-between" onclick="event.stopPropagation()">
         <button onclick="shiftHires(-1)" style="background:rgba(255,255,255,.25);border:none;border-radius:4px;color:#fff;padding:0 6px;font-size:.8rem;cursor:pointer">◀</button>
         <button onclick="shiftHires(1)" style="background:rgba(255,255,255,.25);border:none;border-radius:4px;color:#fff;padding:0 6px;font-size:.8rem;cursor:pointer">▶</button>
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="stat-card red" onclick="showDetailCard('이번달 퇴사자', 'resigned', '{{ today_ym }}')">
+  <div class="col-6 col-md-4 col-lg-2 d-flex">
+    <div class="stat-card red w-100" onclick="showDetailCard('이번달 퇴사자', 'resigned', '{{ today_ym }}')">
       <div class="stat-icon">📤</div>
-      <div class="stat-label">이번달 퇴사</div>
-      <div class="stat-num">{{ this_month_resigned|length }}</div>
-      <div class="stat-sub">{{ today_ym }}</div>
+      <div>
+        <div class="stat-label">이번달 퇴사</div>
+        <div class="stat-num">{{ this_month_resigned|length }}</div>
+        <div class="stat-sub">{{ today_ym }}</div>
+      </div>
+      <div></div>
     </div>
   </div>
 
