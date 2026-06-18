@@ -201,12 +201,13 @@
           <td><strong>{{ p.신규입사자명 or p.멘티_사번 or '-' }}</strong></td>
           <td class="text-muted" style="font-size:.8rem">{{ p.직책 or '-' }}</td>
           <td class="text-muted" style="font-size:.8rem">
-            {% set dept = p.부서팀 if p.부서팀 and p.부서팀.lower() not in ('none','null','-','') else
-                          p.그룹 if p.그룹 and p.그룹.lower() not in ('none','null','-','') else
-                          p.본부 if p.본부 and p.본부.lower() not in ('none','null','-','') else
-                          p.소속 if p.소속 and p.소속.lower() not in ('none','null','-','') else '-' %}
-            {{ dept }}
-            {% if dept != p.부서팀 and dept != '-' %}<span class="text-muted" style="font-size:.7rem"> (상위)</span>{% endif %}
+            {% set _v = namespace(val='-') %}
+            {% for f in [p.파트, p.부서팀, p.그룹, p.본부, p.소속] %}
+              {% if _v.val == '-' and f and f.lower() not in ('none','null','-','') %}
+                {% set _v.val = f %}
+              {% endif %}
+            {% endfor %}
+            {{ _v.val }}
           </td>
           <td class="text-muted">{{ p.입사일 or '-' }}</td>
           <td class="text-muted small">{{ (p.생성일 or '')[:10] }}</td>

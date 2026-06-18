@@ -238,7 +238,7 @@ def get_pending_wellmates():
     conn.commit()
     rows = conn.execute("""
         SELECT w.id, w.멘티_사번, w.생성일,
-               e.이름 as 신규입사자명, e.직책, e.소속, e.본부, e.그룹, e.부서팀, e.입사일
+               e.이름 as 신규입사자명, e.직책, e.소속, e.본부, e.그룹, e.부서팀, e.파트, e.입사일
         FROM wellmate w
         JOIN employees e ON w.멘티_사번 = e.사번
         WHERE (w.멘토_이름 IS NULL OR w.멘토_이름 = '')
