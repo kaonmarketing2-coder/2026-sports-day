@@ -256,6 +256,30 @@ def api_dashboard_by_직책():
     return jsonify(get_employees_by_직책_cat(cat))
 
 
+@app.route("/api/dashboard/by-tenure")
+@login_required
+def api_dashboard_by_tenure():
+    from datetime import date, datetime
+    bucket = request.args.get("bucket", "")
+    rows = get_all_employees()
+    today = date.today()
+    result = []
+    for e in rows:
+        try:
+            d = datetime.strptime(str(e["입사일"])[:10], "%Y-%m-%d").date()
+            years = (today - d).days / 365.25
+            if   years < 1:    b = "1년 미만"
+            elif years < 3:    b = "1~3년"
+            elif years < 5:    b = "3~5년"
+            elif years < 10:   b = "5~10년"
+            else:              b = "10년 이상"
+            if b == bucket:
+                result.append(e)
+        except Exception:
+            pass
+    return jsonify(result)
+
+
 @app.route("/api/calendar/<int:year>/<int:month>")
 @login_required
 def api_calendar(year, month):

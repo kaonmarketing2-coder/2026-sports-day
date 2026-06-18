@@ -120,6 +120,20 @@
     </div>
   </div>
 </div>
+{# ── 차트 상세 모달 ── #}
+<div class="modal fade" id="chartDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold" id="chartDetailTitle"></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" id="chartDetailBody">
+        <div class="text-center py-5"><div class="spinner-border" style="color:#FF7B0F"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -159,6 +173,41 @@ const sokcheolDist = {{ 소속_dist | tojson }};
 const jikchekDist  = {{ 직책_dist | tojson }};
 const tenureDist   = {{ tenure_dist | tojson }};
 
+/* ── 차트 상세 모달 공통 ── */
+const chartModal = new bootstrap.Modal(document.getElementById('chartDetailModal'));
+
+function showChartDetail(title, url) {
+  document.getElementById('chartDetailTitle').textContent = title;
+  document.getElementById('chartDetailBody').innerHTML =
+    '<div class="text-center py-5"><div class="spinner-border" style="color:#FF7B0F"></div></div>';
+  chartModal.show();
+  fetch(url).then(r => r.json()).then(data => {
+    if (!data.length) {
+      document.getElementById('chartDetailBody').innerHTML =
+        '<div class="text-center text-muted py-5">해당 직원이 없습니다.</div>';
+      return;
+    }
+    let html = `<div class="table-responsive"><table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light"><tr>
+        <th>사번</th><th>이름</th><th>직책</th><th>소속</th><th>본부</th><th>부서/팀</th><th>입사일</th>
+      </tr></thead><tbody>`;
+    data.forEach(e => {
+      html += `<tr>
+        <td class="text-muted small">${e.사번||''}</td>
+        <td><strong>${e.이름||''}</strong></td>
+        <td>${e.직책||'-'}</td>
+        <td>${e.소속||'-'}</td>
+        <td class="text-muted small">${e.본부||'-'}</td>
+        <td class="text-muted small">${e.부서팀||'-'}</td>
+        <td class="text-muted small">${e.입사일||'-'}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>
+      <div class="px-3 py-2 text-muted" style="font-size:.78rem">총 ${data.length}명</div>`;
+    document.getElementById('chartDetailBody').innerHTML = html;
+  });
+}
+
 const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
   type: "doughnut",
   data: {
@@ -175,7 +224,7 @@ const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
     onClick(event, elements) {
       if (!elements.length) return;
       const name = sokcheolDist[elements[0].index]["소속"];
-      window.location.href = `/employees?소속=${encodeURIComponent(name)}`;
+      showChartDetail(`🏢 ${name} 재직자`, `/api/dashboard/by-sokcheol?name=${encodeURIComponent(name)}`);
     },
     onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
   }
@@ -193,6 +242,11 @@ new Chart(document.getElementById("jikchekChart"), {
     plugins: {
       legend: { position:"bottom", labels:{ boxWidth:10, font:{size:10}, padding:6 } },
       tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
+    },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const cat = jikchekDist[elements[0].index]["직책"];
+      showChartDetail(`👔 ${cat} 직원 목록`, `/api/dashboard/by-jikchek?cat=${encodeURIComponent(cat)}`);
     },
     onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
   }
@@ -220,7 +274,13 @@ new Chart(document.getElementById("tenureChart"), {
     scales: {
       y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
       x: { ticks: { font: { size: 10 } } }
-    }
+    },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const bucket = tenureDist[elements[0].index]["구간"];
+      showChartDetail(`⏳ 재직기간 ${bucket} 직원 목록`, `/api/dashboard/by-tenure?bucket=${encodeURIComponent(bucket)}`);
+    },
+    onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
   }
 });
 </script>
