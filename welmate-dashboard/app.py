@@ -667,11 +667,13 @@ def wellmate_export_visible():
     wb.save(output)
     output.seek(0)
 
-    fname = f"웰메이트현황_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    from urllib.parse import quote
+    fname_ko = f"웰메이트현황_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    fname_encoded = quote(fname_ko, safe='')
     return Response(
         output.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"}
+        headers={"Content-Disposition": f"attachment; filename=\"wellmate.xlsx\"; filename*=UTF-8''{fname_encoded}"}
     )
 
 
