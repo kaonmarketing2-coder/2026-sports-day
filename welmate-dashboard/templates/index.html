@@ -200,7 +200,7 @@
         <tr>
           <td><strong>{{ p.신규입사자명 or p.멘티_사번 or '-' }}</strong></td>
           <td class="text-muted" style="font-size:.8rem">{{ p.직책 or '-' }}</td>
-          <td class="text-muted" style="font-size:.8rem">{{ p.부서팀 or '-' }}</td>
+          <td class="text-muted" style="font-size:.8rem">{{ p.부서팀 if p.부서팀 and p.부서팀.lower() not in ('none','null','-','') else '-' }}</td>
           <td class="text-muted">{{ p.입사일 or '-' }}</td>
           <td class="text-muted small">{{ (p.생성일 or '')[:10] }}</td>
           <td>

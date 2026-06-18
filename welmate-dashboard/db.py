@@ -11,9 +11,9 @@ def _clean(v):
     return None if s.lower() in _NONE_STRINGS else s
 
 def _clean_emp(d):
-    """직원 dict의 선택 컬럼 정규화"""
-    opt = ("본부", "그룹", "부서팀", "파트")
-    return {k: (_clean(v) if k in opt else v) for k, v in d.items()}
+    """직원 dict 정규화 — 텍스트 컬럼의 none/null/nan → None"""
+    skip = ("사번",)
+    return {k: (_clean(v) if isinstance(v, str) and k not in skip else v) for k, v in d.items()}
 
 
 def get_conn():
