@@ -797,26 +797,32 @@ function toggleActivityFilter() {
     ? 'btn btn-warning btn-sm'
     : 'btn btn-outline-warning btn-sm';
   btn.style.fontSize = '.75rem';
-  applyActivityFilter();
+  applyAllFilters();
 }
-function applyActivityFilter() {
-  if (!activityFilterOn) {
-    document.querySelectorAll('tbody tr[data-deadline]').forEach(tr => {
-      tr.style.display = (doneHidden && tr.classList.contains('sv-done')) ? 'none' : '';
-    });
-    return;
-  }
+function applyActivityFilter() { applyAllFilters(); }
+
+function applyAllFilters() {
   const now = new Date();
-  const months = [];
+  const actMonths = [];
   for (let i = 0; i < 3; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    actMonths.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
   }
   document.querySelectorAll('tbody tr[data-deadline]').forEach(tr => {
     const dl = tr.getAttribute('data-deadline');
-    const inRange = dl && months.includes(dl);
-    if (!inRange) { tr.style.display = 'none'; return; }
-    tr.style.display = (doneHidden && tr.classList.contains('sv-done')) ? 'none' : '';
+    const inActivityRange = dl && actMonths.includes(dl);
+    const isDone = tr.classList.contains('sv-done');
+
+    if (activityFilterOn && !inActivityRange) {
+      // 활동비 표시 ON: 범위 밖은 무조건 숨김
+      tr.style.display = 'none';
+    } else if (activityFilterOn && inActivityRange) {
+      // 활동비 표시 ON + 범위 안: 완료 숨김 상태와 무관하게 표시
+      tr.style.display = '';
+    } else {
+      // 활동비 표시 OFF: 완료 숨김만 적용
+      tr.style.display = (doneHidden && isDone) ? 'none' : '';
+    }
   });
 }
 
@@ -829,10 +835,7 @@ function toggleDoneRows() {
   document.getElementById('toggleDoneBtn').textContent = doneHidden ? '✓ 완료 숨김' : '✓ 완료 표시';
 }
 function applyDoneFilter() {
-  document.querySelectorAll('tr.sv-done').forEach(tr => {
-    tr.style.display = doneHidden ? 'none' : '';
-  });
-  if (activityFilterOn) applyActivityFilter();
+  applyAllFilters();
 }
 
 /* ── 입사자 카드 월 탐색 ── */
