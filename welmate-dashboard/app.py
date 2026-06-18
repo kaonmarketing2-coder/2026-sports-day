@@ -590,6 +590,18 @@ def wellmate_delete(id):
     return redirect(url_for("index"))
 
 
+@app.route("/api/wellmate/<int:wm_id>/cost-center", methods=["POST"])
+@login_required
+def api_update_cost_center(wm_id):
+    val = request.json.get("value", "").strip() or None
+    conn = __import__('db').get_conn()
+    conn.execute("UPDATE wellmate SET 코스트센터=? WHERE id=?", (val, wm_id))
+    conn.commit()
+    conn.close()
+    _auto_export()
+    return jsonify({"ok": True, "value": val or ""})
+
+
 @app.route("/wellmate/export-visible", methods=["POST"])
 @login_required
 def wellmate_export_visible():

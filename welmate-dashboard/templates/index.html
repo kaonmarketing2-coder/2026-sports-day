@@ -55,6 +55,9 @@
     padding:1px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cal-ev.deadline { background:#fef3c7; color:#92400e; border-left:2px solid #f59e0b; }
   .cal-ev.survey   { background:#d1fae5; color:#065f46; border-left:2px solid #10b981; }
+  .cc-cell:hover { background:#fefce8 !important; }
+  .cc-input { font-size:.8rem; border:1px solid #f59e0b; border-radius:4px; padding:1px 5px;
+              width:100px; outline:none; background:#fffbeb; }
 </style>
 {% endblock %}
 
@@ -323,7 +326,10 @@
           <td class="text-muted" style="font-size:.8rem">
             {% if r.멘토 and r.멘토.부서팀 %}{{ r.멘토.부서팀 }}{% if r.멘토.파트 %} ({{ r.멘토.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
-          <td class="text-muted" style="font-size:.8rem">{{ r.코스트센터 or "-" }}</td>
+          <td class="cc-cell" data-wm-id="{{ r.id }}" style="font-size:.8rem;cursor:pointer"
+              title="클릭하여 수정" onclick="startCCEdit(this)">
+            <span class="cc-text">{{ r.코스트센터 or "-" }}</span>
+          </td>
           <td>{{ r.멘티.이름 if r.멘티 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">{{ r.멘티.직책 if r.멘티 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">{{ r.멘티.소속 if r.멘티 else "-" }}</td>
@@ -995,6 +1001,44 @@ function copySmMentee() {
 }
 function copySmMentor() {
   navigator.clipboard.writeText(`제목: ${buildSmSubjectMentor()}\n\n${buildSmBodyMentor()}`);
+}
+
+/* ── 코스트센터 인라인 편집 ── */
+function startCCEdit(td) {
+  if (td.querySelector('input')) return;
+  const span = td.querySelector('.cc-text');
+  const curVal = span.textContent.trim() === '-' ? '' : span.textContent.trim();
+  const wmId = td.getAttribute('data-wm-id');
+
+  const input = document.createElement('input');
+  input.className = 'cc-input';
+  input.value = curVal;
+  input.placeholder = '코스트센터';
+  td.innerHTML = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  function save() {
+    const newVal = input.value.trim();
+    fetch(`/api/wellmate/${wmId}/cost-center`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({value: newVal})
+    }).then(r => r.json()).then(data => {
+      td.innerHTML = `<span class="cc-text">${data.value || '-'}</span>`;
+      // data-cost 속성도 업데이트 (필터용)
+      td.closest('tr').setAttribute('data-cost', data.value || '');
+    });
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') {
+      td.innerHTML = `<span class="cc-text">${curVal || '-'}</span>`;
+    }
+  });
 }
 </script>
 {% endblock %}
