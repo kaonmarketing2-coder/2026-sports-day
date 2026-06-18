@@ -42,6 +42,12 @@
       <canvas id="jikchekChart"></canvas>
     </div>
   </div>
+  <div class="chart-card" style="flex:0 0 320px">
+    <div class="chart-title">⏳ 재직기간 분포</div>
+    <div style="height:200px">
+      <canvas id="tenureChart"></canvas>
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -151,6 +157,7 @@ function showResign(sabun, name) {
 const COLORS = ['#FF7B0F','#3A3B4D','#cc6200','#5a5c72','#e08840','#2e2f3e','#ff9d45','#4a4b60','#ffba80','#7a7b96'];
 const sokcheolDist = {{ 소속_dist | tojson }};
 const jikchekDist  = {{ 직책_dist | tojson }};
+const tenureDist   = {{ tenure_dist | tojson }};
 
 const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
   type: "doughnut",
@@ -188,6 +195,32 @@ new Chart(document.getElementById("jikchekChart"), {
       tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
     },
     onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
+  }
+});
+
+new Chart(document.getElementById("tenureChart"), {
+  type: "bar",
+  data: {
+    labels: tenureDist.map(d => d["구간"]),
+    datasets: [{
+      label: "인원",
+      data: tenureDist.map(d => d.count),
+      backgroundColor: ['#ffba80','#ff9d45','#FF7B0F','#cc6200','#3A3B4D'],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}명` } }
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
+      x: { ticks: { font: { size: 10 } } }
+    }
   }
 });
 </script>

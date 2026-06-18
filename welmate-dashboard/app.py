@@ -10,7 +10,7 @@ from db import (
     get_monthly_hire_counts, get_monthly_resign_counts, get_소속_dist,
     get_employees_by_hire_month, get_employees_by_resign_month,
     get_employees_by_소속_name, get_pending_wellmates,
-    get_직책_dist, get_employees_by_직책_cat, get_avg_tenure, get_calendar_events,
+    get_직책_dist, get_employees_by_직책_cat, get_avg_tenure, get_calendar_events, get_tenure_dist,
     get_team_list, export_to_excel,
     is_budget_checked, set_budget_checked, unset_budget_checked,
     toggle_survey_complete,
@@ -288,7 +288,8 @@ def employees():
     q = request.args.get("q", "")
     rows = search_employees(q) if q else get_all_employees()
     return render_template("employees.html", employees=rows, q=q,
-                           소속_dist=get_소속_dist(), 직책_dist=get_직책_dist())
+                           소속_dist=get_소속_dist(), 직책_dist=get_직책_dist(),
+                           tenure_dist=get_tenure_dist())
 
 
 @app.route("/employees/add", methods=["GET", "POST"])

@@ -585,6 +585,31 @@ def get_team_list():
     return list(teams.values())
 
 
+def get_tenure_dist():
+    """재직기간 구간별 인원 수 반환"""
+    from datetime import date, datetime
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT 입사일 FROM employees
+        WHERE (상태 IS NULL OR 상태='재직') AND 입사일 IS NOT NULL AND 입사일 != ''
+    """).fetchall()
+    conn.close()
+    today = date.today()
+    buckets = {"1년 미만": 0, "1~3년": 0, "3~5년": 0, "5~10년": 0, "10년 이상": 0}
+    for r in rows:
+        try:
+            d = datetime.strptime(str(r["입사일"])[:10], "%Y-%m-%d").date()
+            years = (today - d).days / 365.25
+            if years < 1:    buckets["1년 미만"] += 1
+            elif years < 3:  buckets["1~3년"] += 1
+            elif years < 5:  buckets["3~5년"] += 1
+            elif years < 10: buckets["5~10년"] += 1
+            else:            buckets["10년 이상"] += 1
+        except Exception:
+            pass
+    return [{"구간": k, "count": v} for k, v in buckets.items()]
+
+
 def export_to_excel(path: str):
     """직원DB + 웰메이트 현황을 엑셀 파일로 저장한다."""
     import pandas as pd
