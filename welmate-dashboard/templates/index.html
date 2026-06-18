@@ -216,27 +216,11 @@
 
 {# ── 2. 차트 3개 ── #}
 <div class="row g-3 mb-4">
-  <div class="col-lg-6">
+  <div class="col-12">
     <div class="chart-card h-100 d-flex flex-column">
       <div class="chart-title">📈 월별 입사 / 퇴사 추이 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭하면 해당 월 명단)</span></div>
       <div class="flex-grow-1 d-flex align-items-center">
         <canvas id="monthlyChart"></canvas>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-3">
-    <div class="chart-card h-100 d-flex flex-column">
-      <div class="chart-title">🏢 소속별 재직 인원 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
-      <div class="flex-grow-1 d-flex align-items-center">
-        <canvas id="sokcheolChart"></canvas>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-3">
-    <div class="chart-card h-100 d-flex flex-column">
-      <div class="chart-title">👔 직책별 구성 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
-      <div class="flex-grow-1 d-flex align-items-center">
-        <canvas id="jikchekChart"></canvas>
       </div>
     </div>
   </div>
@@ -502,62 +486,6 @@ const monthlyChart = new Chart(document.getElementById("monthlyChart"), {
       const month = mLabels[idx];
       if (dsIdx === 0) showDetailCard(month + ' 입사자', 'hires', month);
       else             showDetailCard(month + ' 퇴사자', 'resigned', month);
-    },
-    onHover(event, elements) {
-      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-    }
-  }
-});
-
-/* ── 소속별 도넛 차트 ── */
-const sLabels = sokcheolDist.map(d => d["소속"]);
-const sCounts = sokcheolDist.map(d => d.count);
-
-const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
-  type: "doughnut",
-  data: {
-    labels: sLabels,
-    datasets: [{ data: sCounts, backgroundColor: COLORS, borderWidth:2, hoverOffset:6 }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
-      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
-    },
-    onClick(event, elements) {
-      if (!elements.length) return;
-      const name = sLabels[elements[0].index];
-      showDetailCard(name + ' 소속 재직자', 'sokcheol', name);
-    },
-    onHover(event, elements) {
-      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-    }
-  }
-});
-
-/* ── 직책별 도넛 차트 ── */
-const jLabels = jikchekDist.map(d => d["직책"]);
-const jCounts = jikchekDist.map(d => d.count);
-
-new Chart(document.getElementById("jikchekChart"), {
-  type: "doughnut",
-  data: {
-    labels: jLabels,
-    datasets: [{ data: jCounts,
-      backgroundColor: COLORS.slice().reverse(),
-      borderWidth:2, hoverOffset:6 }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
-      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
-    },
-    onClick(event, elements) {
-      if (!elements.length) return;
-      const cat = jLabels[elements[0].index];
-      showDetailCard(cat + ' 직원 목록', 'jikchek', cat);
     },
     onHover(event, elements) {
       event.native.target.style.cursor = elements.length ? 'pointer' : 'default';

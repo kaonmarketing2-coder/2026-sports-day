@@ -287,7 +287,8 @@ def api_dashboard_wm_incomplete():
 def employees():
     q = request.args.get("q", "")
     rows = search_employees(q) if q else get_all_employees()
-    return render_template("employees.html", employees=rows, q=q)
+    return render_template("employees.html", employees=rows, q=q,
+                           소속_dist=get_소속_dist(), 직책_dist=get_직책_dist())
 
 
 @app.route("/employees/add", methods=["GET", "POST"])

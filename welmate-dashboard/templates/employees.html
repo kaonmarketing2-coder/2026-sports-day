@@ -2,13 +2,16 @@
 {% block title %}직원 DB — 웰메이트{% endblock %}
 
 {% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   .col-filter-input {
     width:100%; font-size:.72rem; padding:2px 5px; border:1px solid #d1d5db;
     border-radius:4px; outline:none;
   }
-  .col-filter-input:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15); }
+  .col-filter-input:focus { border-color:#FF7B0F; box-shadow:0 0 0 2px rgba(255,123,15,.15); }
   #empCount { font-size:.8rem; color:#6b7280; }
+  .chart-card { border-radius:12px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.07); padding:18px 20px; }
+  .chart-title { font-size:.85rem; font-weight:700; color:#374151; margin-bottom:12px; }
 </style>
 {% endblock %}
 
@@ -22,6 +25,26 @@
     <a href="/employees/export" class="btn btn-outline-success btn-sm">📤 엑셀 추출</a>
     <a href="/employees/bulk-edit" class="btn btn-outline-warning btn-sm">🔄 벌크 수정</a>
     <a href="/employees/import" class="btn btn-outline-primary btn-sm">📥 임포트</a>
+  </div>
+</div>
+
+{# ── 차트 ── #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="chart-card h-100 d-flex flex-column">
+      <div class="chart-title">🏢 소속별 재직 인원 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
+      <div class="flex-grow-1 d-flex align-items-center">
+        <canvas id="sokcheolChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="chart-card h-100 d-flex flex-column">
+      <div class="chart-title">👔 직책별 구성 <span style="font-size:.72rem;color:#9ca3af;font-weight:400">(클릭)</span></div>
+      <div class="flex-grow-1 d-flex align-items-center">
+        <canvas id="jikchekChart"></canvas>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -127,5 +150,47 @@ function showResign(sabun, name) {
   document.getElementById("resignDate").value = new Date().toISOString().split("T")[0];
   new bootstrap.Modal(document.getElementById("resignModal")).show();
 }
+
+/* ── 소속별 / 직책별 차트 ── */
+const COLORS = ['#FF7B0F','#3A3B4D','#cc6200','#5a5c72','#e08840','#2e2f3e','#ff9d45','#4a4b60','#ffba80','#7a7b96'];
+const sokcheolDist = {{ 소속_dist | tojson }};
+const jikchekDist  = {{ 직책_dist | tojson }};
+
+const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
+  type: "doughnut",
+  data: {
+    labels: sokcheolDist.map(d => d["소속"]),
+    datasets: [{ data: sokcheolDist.map(d => d.count), backgroundColor: COLORS, borderWidth:2, hoverOffset:6 }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
+    },
+    onClick(event, elements) {
+      if (!elements.length) return;
+      const name = sokcheolDist[elements[0].index]["소속"];
+      window.location.href = `/employees?소속=${encodeURIComponent(name)}`;
+    },
+    onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
+  }
+});
+
+new Chart(document.getElementById("jikchekChart"), {
+  type: "doughnut",
+  data: {
+    labels: jikchekDist.map(d => d["직책"]),
+    datasets: [{ data: jikchekDist.map(d => d.count), backgroundColor: COLORS.slice().reverse(), borderWidth:2, hoverOffset:6 }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position:"bottom", labels:{ boxWidth:12, font:{size:11}, padding:8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}명` } }
+    },
+    onHover(ev, el) { ev.native.target.style.cursor = el.length ? 'pointer' : 'default'; }
+  }
+});
 </script>
 {% endblock %}
