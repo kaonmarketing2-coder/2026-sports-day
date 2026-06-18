@@ -45,19 +45,19 @@
   .cal-header { display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
     font-size:.72rem; font-weight:700; color:#6b7280; margin-bottom:4px; }
   .cal-dh { padding:4px 0; }
-  .cal-body  { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-  .cal-cell  { min-height:54px; border-radius:8px; padding:5px 6px;
+  .cal-body  { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-cell  { min-height:72px; border-radius:8px; padding:7px 8px;
     background:#f9fafb; position:relative; }
-  .cal-cell.today   { background:#fff3e8; border:1px solid #FF7B0F; }
+  .cal-cell.today   { background:#fff3e8; border:2px solid #FF7B0F; }
   .cal-cell.has-ev  { cursor:pointer; }
   .cal-cell.has-ev:hover { background:#ffe8d0; }
   .cal-cell.empty   { background:transparent; }
-  .cal-day  { font-size:.78rem; font-weight:600; color:#374151; }
+  .cal-day  { font-size:.88rem; font-weight:700; color:#374151; }
   .cal-cell.today .cal-day { color:#FF7B0F; font-weight:800; }
-  .cal-ev { font-size:.65rem; line-height:1.3; margin-top:3px; border-radius:4px;
-    padding:1px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cal-ev.deadline { background:#fff3e8; color:#cc6200; border-left:2px solid #FF7B0F; }
-  .cal-ev.survey   { background:#ffecd6; color:#7a3000; border-left:2px solid #e06800; }
+  .cal-ev { font-size:.72rem; line-height:1.5; margin-top:4px; border-radius:4px;
+    padding:2px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-ev.deadline { background:#fff3e8; color:#cc6200; border-left:3px solid #FF7B0F; }
+  .cal-ev.survey   { background:#ffecd6; color:#7a3000; border-left:3px solid #e06800; }
   .cc-cell:hover { background:#fff3e8 !important; }
   .cc-input { font-size:.8rem; border:1px solid #FF7B0F; border-radius:4px; padding:1px 5px;
               width:100px; outline:none; background:#fff8f2; }
@@ -192,17 +192,15 @@
     <table class="table table-sm table-hover mb-0 align-middle">
       <thead class="table-light">
         <tr>
-          <th>신규입사자</th><th>직책 · 부서/팀</th><th>입사일</th><th>등록일</th><th></th>
+          <th>신규입사자</th><th>직책</th><th>부서/팀</th><th>입사일</th><th>등록일</th><th></th>
         </tr>
       </thead>
       <tbody>
         {% for p in pending_wellmates %}
         <tr>
           <td><strong>{{ p.신규입사자명 or p.멘티_사번 or '-' }}</strong></td>
-          <td class="text-muted" style="font-size:.8rem">
-            {{ p.직책 or '-' }}
-            {% if p.부서팀 %}<br><span style="font-size:.75rem">{{ p.부서팀 }}</span>{% endif %}
-          </td>
+          <td class="text-muted" style="font-size:.8rem">{{ p.직책 or '-' }}</td>
+          <td class="text-muted" style="font-size:.8rem">{{ p.부서팀 or '-' }}</td>
           <td class="text-muted">{{ p.입사일 or '-' }}</td>
           <td class="text-muted small">{{ (p.생성일 or '')[:10] }}</td>
           <td>
