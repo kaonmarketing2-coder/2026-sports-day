@@ -7,51 +7,78 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     :root {
-      --kaon-orange: #FF7B0F;
-      --kaon-black:  #000000;
-      --kaon-dark:   #3A3B4D;
-      --kaon-gray:   #B0B0B0;
+      --kaon-orange:      #FF7B0F;
+      --kaon-orange-dark: #cc6200;
+      --kaon-black:       #000000;
+      --kaon-dark:        #3A3B4D;
+      --kaon-dark2:       #2e2f3e;
+      --kaon-gray:        #B0B0B0;
+      --kaon-bg:          #f2f3f5;
     }
-    body { background: #f2f3f5; font-size: 13px; }
+
+    body { background: var(--kaon-bg); font-size: 13px; }
 
     /* ── 네비게이션 ── */
-    .navbar { background: var(--kaon-dark) !important; padding-top: 0; padding-bottom: 0; }
-    .navbar-brand {
-      font-weight: 800; font-size: 1rem; padding: 10px 0;
-      display: flex; align-items: center; gap: 10px;
+    .navbar {
+      background: var(--kaon-dark) !important;
+      padding-top: 0; padding-bottom: 0;
+      border-bottom: 2px solid var(--kaon-orange);
     }
-    /* KAON 로고 SVG 인라인 */
-    .kaon-logo-svg { height: 26px; width: auto; }
+    .navbar-brand {
+      padding: 8px 0; display: flex; align-items: center; gap: 10px;
+    }
+    .kaon-logo { height: 28px; width: auto; }
 
-    .nav-link { color: rgba(255,255,255,.75) !important; font-size: .84rem; padding: 14px 12px !important; }
-    .nav-link:hover  { color: #fff !important; background: rgba(255,255,255,.08); }
+    .nav-link {
+      color: rgba(255,255,255,.75) !important;
+      font-size: .84rem; padding: 14px 14px !important;
+      border-bottom: 2px solid transparent;
+    }
+    .nav-link:hover  { color: #fff !important; background: rgba(255,255,255,.07); }
     .nav-link.active { color: #fff !important; border-bottom: 2px solid var(--kaon-orange); }
 
-    .card { border: none; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
-    .btn-primary { background: var(--kaon-orange); border-color: var(--kaon-orange); }
-    .btn-primary:hover { background: #e06800; border-color: #e06800; }
-    .page-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; }
+    /* ── 카드 ── */
+    .card {
+      border: none; border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.07);
+    }
+
+    /* ── 버튼 ── */
+    .btn-primary {
+      background: var(--kaon-orange); border-color: var(--kaon-orange);
+    }
+    .btn-primary:hover, .btn-primary:focus {
+      background: var(--kaon-orange-dark); border-color: var(--kaon-orange-dark);
+    }
+    .btn-outline-primary {
+      color: var(--kaon-orange); border-color: var(--kaon-orange);
+    }
+    .btn-outline-primary:hover {
+      background: var(--kaon-orange); border-color: var(--kaon-orange); color: #fff;
+    }
+
+    /* ── 테이블 ── */
+    .table thead th { background: var(--kaon-dark) !important; color: #fff; font-weight: 600; }
+    .table-hover tbody tr:hover { background: #fff3e8 !important; }
+    .table { border-radius: 8px; overflow: hidden; }
+
+    /* ── 페이지 타이틀 ── */
+    .page-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; color: var(--kaon-dark); }
+
+    /* ── 배지 ── */
+    .badge.bg-primary { background: var(--kaon-orange) !important; }
+
+    /* ── 링크 ── */
+    a { color: var(--kaon-orange); }
+    a:hover { color: var(--kaon-orange-dark); }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
 <nav class="navbar navbar-expand-lg mb-4 px-3">
-  <a class="navbar-brand text-white" href="/">
-    <!-- KAON 로고 (다크 배경용 — K·A·N 흰색, 파워 심볼 오렌지) -->
-    <svg class="kaon-logo-svg" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- K -->
-      <path d="M0 4h10v22l18-22h13L22 32l21 24H30L10 32v24H0V4z" fill="#ffffff"/>
-      <!-- A -->
-      <path d="M55 56L73 4h10l18 52H91l-4-12H69l-4 12H55zm17-20h12l-6-18-6 18z" fill="#ffffff"/>
-      <!-- power symbol circle (O) -->
-      <g transform="translate(110,4)">
-        <circle cx="26" cy="26" r="22" stroke="#FF7B0F" stroke-width="7" fill="none" stroke-dasharray="110 40" stroke-dashoffset="-20"/>
-        <line x1="26" y1="4" x2="26" y2="20" stroke="#FF7B0F" stroke-width="7" stroke-linecap="round"/>
-      </g>
-      <!-- N -->
-      <path d="M162 4h10l24 36V4h10v52h-10L172 20v36h-10V4z" fill="#ffffff"/>
-    </svg>
-    <span style="font-size:.8rem;color:rgba(255,255,255,.55);font-weight:400;letter-spacing:.04em">웰메이트</span>
+  <a class="navbar-brand" href="/">
+    <img src="/static/kaon_logo.png" alt="KAON" class="kaon-logo">
+    <span style="font-size:.78rem;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.05em;margin-left:4px">웰메이트</span>
   </a>
   <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
     <span class="navbar-toggler-icon"></span>
@@ -64,7 +91,10 @@
       <li class="nav-item"><a class="nav-link {% if request.path=='/resigned' %}active{% endif %}" href="/resigned">퇴사자</a></li>
       <li class="nav-item"><a class="nav-link" href="/wellmate/new">+ 매칭 등록</a></li>
     </ul>
-    <a class="btn btn-sm btn-outline-light" href="/logout">로그아웃</a>
+    <a class="btn btn-sm" href="/logout"
+       style="color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:4px 12px">
+      로그아웃
+    </a>
   </div>
 </nav>
 

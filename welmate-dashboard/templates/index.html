@@ -4,12 +4,13 @@
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  th.mentor { background: #c7d7f9 !important; }
-  th.mentee { background: #b7e4c7 !important; }
-  th.date   { background: #fde68a !important; }
-  tr.마감임박  { background: #fef3c7 !important; }
-  tr.서베이임박 { background: #d1fae5 !important; }
-  tr.둘다임박  { background: #fee2e2 !important; }
+  /* 웰메이트 테이블 서브헤더 — KAON 색상 계열 */
+  th.mentor { background: #4a4b60 !important; color: #fff !important; }
+  th.mentee { background: #FF7B0F !important; color: #fff !important; }
+  th.date   { background: #e06800 !important; color: #fff !important; }
+  tr.마감임박  { background: #fff3e8 !important; }
+  tr.서베이임박 { background: #ffecd6 !important; }
+  tr.둘다임박  { background: #ffe0c0 !important; }
   tr.퇴직 td  { color: #adb5bd; }
   .badge-d { font-size:.7rem; }
 
@@ -47,17 +48,17 @@
   .cal-body  { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
   .cal-cell  { min-height:54px; border-radius:8px; padding:5px 6px;
     background:#f9fafb; position:relative; }
-  .cal-cell.today   { background:#dbeafe; }
+  .cal-cell.today   { background:#fff3e8; border:1px solid #FF7B0F; }
   .cal-cell.has-ev  { cursor:pointer; }
-  .cal-cell.has-ev:hover { background:#ede9fe; }
+  .cal-cell.has-ev:hover { background:#ffe8d0; }
   .cal-cell.empty   { background:transparent; }
   .cal-day  { font-size:.78rem; font-weight:600; color:#374151; }
-  .cal-cell.today .cal-day { color:#1d4ed8; font-weight:800; }
+  .cal-cell.today .cal-day { color:#FF7B0F; font-weight:800; }
   .cal-ev { font-size:.65rem; line-height:1.3; margin-top:3px; border-radius:4px;
     padding:1px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cal-ev.deadline { background:#fef3c7; color:#92400e; border-left:2px solid #f59e0b; }
-  .cal-ev.survey   { background:#d1fae5; color:#065f46; border-left:2px solid #10b981; }
-  .cc-cell:hover { background:#fefce8 !important; }
+  .cal-ev.deadline { background:#fff3e8; color:#cc6200; border-left:2px solid #FF7B0F; }
+  .cal-ev.survey   { background:#ffecd6; color:#7a3000; border-left:2px solid #e06800; }
+  .cc-cell:hover { background:#fff3e8 !important; }
   .cc-input { font-size:.8rem; border:1px solid #FF7B0F; border-radius:4px; padding:1px 5px;
               width:100px; outline:none; background:#fff8f2; }
   .cc-cell:hover { background:#fff3e8 !important; }
@@ -470,7 +471,7 @@ const monthlyHires    = {{ monthly_hires | tojson }};
 const monthlyResigned = {{ monthly_resigned | tojson }};
 const sokcheolDist    = {{ 소속_dist | tojson }};
 const jikchekDist     = {{ 직책_dist | tojson }};
-const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#6366f1','#84cc16','#f97316'];
+const COLORS = ['#FF7B0F','#3A3B4D','#cc6200','#5a5c72','#e08840','#2e2f3e','#ff9d45','#4a4b60','#ffba80','#7a7b96'];
 
 /* ── 월별 꺾은선 차트 ── */
 const mLabels = monthlyHires.map(d => d.month);
@@ -482,9 +483,9 @@ const monthlyChart = new Chart(document.getElementById("monthlyChart"), {
   data: {
     labels: mLabels,
     datasets: [
-      { label:"입사", data: mHires, borderColor:"#3b82f6", backgroundColor:"rgba(59,130,246,.1)",
+      { label:"입사", data: mHires, borderColor:"#FF7B0F", backgroundColor:"rgba(255,123,15,.1)",
         tension:.35, fill:true, pointRadius:4, pointHoverRadius:6 },
-      { label:"퇴사", data: mResign, borderColor:"#ef4444", backgroundColor:"rgba(239,68,68,.08)",
+      { label:"퇴사", data: mResign, borderColor:"#3A3B4D", backgroundColor:"rgba(58,59,77,.08)",
         tension:.35, fill:true, pointRadius:4, pointHoverRadius:6 },
     ]
   },
