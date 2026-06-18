@@ -266,7 +266,23 @@
   <button id="toggleActivityBtn" onclick="toggleActivityFilter()" class="btn btn-outline-warning btn-sm" style="font-size:.75rem">
     💰 활동비 표시
   </button>
-  <a href="/wellmate/new" class="ms-auto btn btn-primary btn-sm">+ 매칭 등록</a>
+  <button onclick="exportVisibleTable()" class="btn btn-outline-success btn-sm ms-auto" style="font-size:.75rem">📥 엑셀 추출</button>
+  <a href="/wellmate/new" class="btn btn-primary btn-sm">+ 매칭 등록</a>
+</div>
+<div id="filterBar" class="d-flex gap-2 flex-wrap mb-2 align-items-center" style="font-size:.78rem">
+  <select id="fMentorSok" class="form-select form-select-sm" style="max-width:130px" onchange="applyAllFilters()">
+    <option value="">웰메이트 소속</option>
+  </select>
+  <select id="fMenteeSok" class="form-select form-select-sm" style="max-width:130px" onchange="applyAllFilters()">
+    <option value="">신규입사자 소속</option>
+  </select>
+  <select id="fDeadline" class="form-select form-select-sm" style="max-width:110px" onchange="applyAllFilters()">
+    <option value="">마감월</option>
+  </select>
+  <select id="fCost" class="form-select form-select-sm" style="max-width:130px" onchange="applyAllFilters()">
+    <option value="">코스트센터</option>
+  </select>
+  <button onclick="clearFilters()" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">✕ 초기화</button>
 </div>
 <div class="card mb-4">
   <div class="table-responsive">
@@ -274,15 +290,15 @@
       <thead>
         <tr>
           <th rowspan="2" class="text-center align-middle" style="width:36px">#</th>
-          <th colspan="3" class="text-center mentor">🧑‍💼 웰메이트</th>
-          <th colspan="4" class="text-center mentee">🌱 신규입사자</th>
+          <th colspan="5" class="text-center mentor">🧑‍💼 웰메이트</th>
+          <th colspan="5" class="text-center mentee">🌱 신규입사자</th>
           <th colspan="4" class="text-center date">📅 일정</th>
           <th rowspan="2" class="text-center align-middle">재직</th>
           <th rowspan="2" class="text-center align-middle">관리</th>
         </tr>
         <tr>
-          <th class="mentor">이름</th><th class="mentor">직책</th><th class="mentor">부서/팀</th>
-          <th class="mentee">이름</th><th class="mentee">직책</th><th class="mentee">부서/팀</th><th class="mentee">입사일</th>
+          <th class="mentor">이름</th><th class="mentor">직책</th><th class="mentor">소속</th><th class="mentor">부서/팀</th><th class="mentor">코스트센터</th>
+          <th class="mentee">이름</th><th class="mentee">직책</th><th class="mentee">소속</th><th class="mentee">부서/팀</th><th class="mentee">입사일</th>
           <th class="date">마감월</th><th class="date">잔여</th>
           <th class="date">엔드서베이</th><th class="date">잔여</th>
         </tr>
@@ -294,15 +310,23 @@
         {% elif r.서베이_임박 %}{% set rc="서베이임박" %}
         {% elif not r.재직중 %}{% set rc="퇴직" %}
         {% else %}{% set rc="" %}{% endif %}
-        <tr class="{{ rc }}{% if r.엔드서베이_완료 %} sv-done{% endif %}" data-deadline="{{ r.마감월[:7] if r.마감월 else '' }}">
+        <tr class="{{ rc }}{% if r.엔드서베이_완료 %} sv-done{% endif %}"
+            data-deadline="{{ r.마감월[:7] if r.마감월 else '' }}"
+            data-mentor-sokcheol="{{ r.멘토.소속 if r.멘토 else '' }}"
+            data-mentee-sokcheol="{{ r.멘티.소속 if r.멘티 else '' }}"
+            data-cost="{{ r.코스트센터 or '' }}"
+            data-id="{{ r.id }}">
           <td class="text-center text-muted">{{ loop.index }}</td>
           <td><strong>{{ r.멘토_이름 }}</strong></td>
           <td class="text-muted" style="font-size:.8rem">{{ r.멘토.직책 if r.멘토 else "-" }}</td>
+          <td class="text-muted" style="font-size:.8rem">{{ r.멘토.소속 if r.멘토 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">
             {% if r.멘토 and r.멘토.부서팀 %}{{ r.멘토.부서팀 }}{% if r.멘토.파트 %} ({{ r.멘토.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
+          <td class="text-muted" style="font-size:.8rem">{{ r.코스트센터 or "-" }}</td>
           <td>{{ r.멘티.이름 if r.멘티 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">{{ r.멘티.직책 if r.멘티 else "-" }}</td>
+          <td class="text-muted" style="font-size:.8rem">{{ r.멘티.소속 if r.멘티 else "-" }}</td>
           <td class="text-muted" style="font-size:.8rem">
             {% if r.멘티 and r.멘티.부서팀 %}{{ r.멘티.부서팀 }}{% if r.멘티.파트 %} ({{ r.멘티.파트 }}){% endif %}{% else %}-{% endif %}
           </td>
@@ -349,7 +373,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="14" class="text-center text-muted py-4">등록된 매칭이 없습니다. <a href="/wellmate/new">+ 매칭 등록</a></td></tr>
+        <tr><td colspan="16" class="text-center text-muted py-4">등록된 매칭이 없습니다. <a href="/wellmate/new">+ 매칭 등록</a></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -801,6 +825,39 @@ function toggleActivityFilter() {
 }
 function applyActivityFilter() { applyAllFilters(); }
 
+function initFilterDropdowns() {
+  const rows = Array.from(document.querySelectorAll('tbody tr[data-deadline]'));
+  function fillSelect(selId, getter) {
+    const sel = document.getElementById(selId);
+    const vals = [...new Set(rows.map(getter).filter(v => v))].sort();
+    vals.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  }
+  fillSelect('fMentorSok', tr => tr.getAttribute('data-mentor-sokcheol'));
+  fillSelect('fMenteeSok', tr => tr.getAttribute('data-mentee-sokcheol'));
+  fillSelect('fDeadline',  tr => tr.getAttribute('data-deadline'));
+  fillSelect('fCost',      tr => tr.getAttribute('data-cost'));
+}
+
+function getDropdownFilters() {
+  return {
+    mentorSok: document.getElementById('fMentorSok').value,
+    menteeSok: document.getElementById('fMenteeSok').value,
+    deadline:  document.getElementById('fDeadline').value,
+    cost:      document.getElementById('fCost').value,
+  };
+}
+
+function clearFilters() {
+  ['fMentorSok','fMenteeSok','fDeadline','fCost'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  applyAllFilters();
+}
+
 function applyAllFilters() {
   const now = new Date();
   const actMonths = [];
@@ -808,10 +865,20 @@ function applyAllFilters() {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     actMonths.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
   }
+  const df = getDropdownFilters();
+
   document.querySelectorAll('tbody tr[data-deadline]').forEach(tr => {
     const dl = tr.getAttribute('data-deadline');
     const inActivityRange = dl && actMonths.includes(dl);
     const isDone = tr.classList.contains('sv-done');
+
+    const matchMentorSok = !df.mentorSok || tr.getAttribute('data-mentor-sokcheol') === df.mentorSok;
+    const matchMenteeSok = !df.menteeSok || tr.getAttribute('data-mentee-sokcheol') === df.menteeSok;
+    const matchDeadline  = !df.deadline  || dl === df.deadline;
+    const matchCost      = !df.cost      || tr.getAttribute('data-cost') === df.cost;
+    const matchDropdown  = matchMentorSok && matchMenteeSok && matchDeadline && matchCost;
+
+    if (!matchDropdown) { tr.style.display = 'none'; return; }
 
     if (activityFilterOn && !inActivityRange) {
       // 활동비 표시 ON: 범위 밖은 무조건 숨김
@@ -826,9 +893,28 @@ function applyAllFilters() {
   });
 }
 
+function exportVisibleTable() {
+  const visibleIds = Array.from(document.querySelectorAll('tbody tr[data-deadline]'))
+    .filter(tr => tr.style.display !== 'none')
+    .map(tr => tr.getAttribute('data-id'))
+    .filter(Boolean);
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/wellmate/export-visible';
+  const inp = document.createElement('input');
+  inp.type = 'hidden';
+  inp.name = 'ids';
+  inp.value = JSON.stringify(visibleIds);
+  form.appendChild(inp);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+}
+
 /* ── 완료 행 토글 ── */
 let doneHidden = true;
-document.addEventListener('DOMContentLoaded', () => applyDoneFilter());
+document.addEventListener('DOMContentLoaded', () => { applyDoneFilter(); initFilterDropdowns(); });
 function toggleDoneRows() {
   doneHidden = !doneHidden;
   applyDoneFilter();

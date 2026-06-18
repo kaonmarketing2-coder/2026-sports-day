@@ -543,6 +543,7 @@ def wellmate_new():
             "재직확인": request.form.get("재직확인") or None,
             "퇴사일": request.form.get("퇴사일") or None,
             "메모": request.form.get("메모") or None,
+            "코스트센터": request.form.get("코스트센터", "").strip() or None,
         })
         _auto_export()
         flash("매칭이 등록되었습니다.")
@@ -566,6 +567,7 @@ def wellmate_edit(id):
             "재직확인": request.form.get("재직확인") or None,
             "퇴사일": request.form.get("퇴사일") or None,
             "메모": request.form.get("메모") or None,
+            "코스트센터": request.form.get("코스트센터", "").strip() or None,
         })
         if mentor:
             _auto_export()
@@ -586,6 +588,79 @@ def wellmate_delete(id):
     _auto_export()
     flash("삭제되었습니다.")
     return redirect(url_for("index"))
+
+
+@app.route("/wellmate/export-visible", methods=["POST"])
+@login_required
+def wellmate_export_visible():
+    import json, openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    ids_json = request.form.get("ids", "[]")
+    try:
+        ids = [int(x) for x in json.loads(ids_json)]
+    except Exception:
+        ids = []
+
+    records = get_all_wellmate()
+    all_emps = {e["사번"]: e for e in get_all_employees(include_resigned=True)}
+    all_emps_by_name = {}
+    for e in get_all_employees(include_resigned=True):
+        all_emps_by_name.setdefault(e["이름"], e)
+
+    if ids:
+        records = [r for r in records if r["id"] in ids]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "웰메이트현황"
+
+    headers = ["#", "웰메이트", "직책(웰메이트)", "소속(웰메이트)", "부서팀(웰메이트)", "코스트센터",
+               "신규입사자", "직책(신규)", "소속(신규)", "부서팀(신규)", "입사일",
+               "마감월", "엔드서베이", "엔드서베이완료", "재직"]
+    ws.append(headers)
+
+    header_fill = PatternFill("solid", fgColor="1E3A8A")
+    header_font = Font(color="FFFFFF", bold=True)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    for i, r in enumerate(records, 1):
+        mentee = all_emps.get(r["멘티_사번"]) if r["멘티_사번"] else None
+        mentor = all_emps_by_name.get(r["멘토_이름"])
+        ws.append([
+            i,
+            r["멘토_이름"] or "-",
+            (mentor.get("직책") if mentor else "") or "-",
+            (mentor.get("소속") if mentor else "") or "-",
+            (mentor.get("부서팀") if mentor else "") or "-",
+            r.get("코스트센터") or "-",
+            (mentee.get("이름") if mentee else "") or "-",
+            (mentee.get("직책") if mentee else "") or "-",
+            (mentee.get("소속") if mentee else "") or "-",
+            (mentee.get("부서팀") if mentee else "") or "-",
+            (mentee.get("입사일") if mentee else "") or "-",
+            (r["마감월"] or "")[:7] if r["마감월"] else "-",
+            r["엔드서베이"] or "-",
+            "완료" if r.get("엔드서베이_완료") else "",
+            "재직" if not r["재직확인"] else "퇴직",
+        ])
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 25)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    fname = f"웰메이트현황_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"}
+    )
 
 
 if __name__ == "__main__":

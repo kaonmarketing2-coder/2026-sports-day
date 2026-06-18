@@ -66,6 +66,12 @@
              value="{{ wm.멘토_이름 if wm else '' }}" placeholder="웰메이트 이름 입력">
       <div id="mentorSuggestions" class="list-group mt-1" style="position:absolute;z-index:100;width:300px;display:none"></div>
     </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">코스트센터</label>
+      <input type="text" name="코스트센터" class="form-control"
+             value="{{ wm.코스트센터 if wm and wm.코스트센터 else '' }}"
+             placeholder="예: CC-1234">
+    </div>
     <div class="info-box" id="mentorInfo" style="{{ 'display:none' if not wm else '' }}">
       <div class="row g-2">
         <div class="col-4"><div class="info-label">직책</div><div id="m_직책">-</div></div>

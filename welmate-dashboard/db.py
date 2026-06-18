@@ -62,7 +62,7 @@ def init_db():
             c.execute(f"ALTER TABLE employees ADD COLUMN {col} TEXT DEFAULT {default}")
         except Exception:
             pass
-    for col, default in [("엔드서베이_완료", "NULL")]:
+    for col, default in [("엔드서베이_완료", "NULL"), ("코스트센터", "NULL")]:
         try:
             c.execute(f"ALTER TABLE wellmate ADD COLUMN {col} TEXT DEFAULT {default}")
         except Exception:
@@ -215,9 +215,9 @@ def get_all_wellmate():
 def add_wellmate(data):
     conn = get_conn()
     cur = conn.execute("""
-        INSERT INTO wellmate (멘토_이름, 멘티_사번, 마감월, 엔드서베이, 재직확인, 퇴사일, 메모)
-        VALUES (:멘토_이름,:멘티_사번,:마감월,:엔드서베이,:재직확인,:퇴사일,:메모)
-    """, data)
+        INSERT INTO wellmate (멘토_이름, 멘티_사번, 마감월, 엔드서베이, 재직확인, 퇴사일, 메모, 코스트센터)
+        VALUES (:멘토_이름,:멘티_사번,:마감월,:엔드서베이,:재직확인,:퇴사일,:메모,:코스트센터)
+    """, {**data, "코스트센터": data.get("코스트센터")})
     new_id = cur.lastrowid
     conn.commit()
     conn.close()
@@ -254,7 +254,7 @@ def update_wellmate(id, data):
     conn.execute("""
         UPDATE wellmate SET 멘토_이름=:멘토_이름, 멘티_사번=:멘티_사번,
         마감월=:마감월, 엔드서베이=:엔드서베이, 재직확인=:재직확인,
-        퇴사일=:퇴사일, 메모=:메모 WHERE id=:id
+        퇴사일=:퇴사일, 메모=:메모, 코스트센터=:코스트센터 WHERE id=:id
     """, {**data, "id": id})
     conn.commit()
     conn.close()
