@@ -12,6 +12,37 @@
   #empCount { font-size:.8rem; color:#6b7280; }
   .chart-card { border-radius:12px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.07); padding:18px 20px; }
   .chart-title { font-size:.85rem; font-weight:700; color:#374151; margin-bottom:12px; }
+
+  /* 드롭다운 다중 선택 필터 */
+  .dd-filter-wrap { position:relative; width:100%; }
+  .dd-filter-btn {
+    width:100%; font-size:.72rem; padding:2px 20px 2px 5px; border:1px solid #d1d5db;
+    border-radius:4px; background:#fff; cursor:pointer; text-align:left;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative;
+  }
+  .dd-filter-btn:after {
+    content:'▾'; position:absolute; right:4px; top:50%; transform:translateY(-50%);
+    font-size:.65rem; color:#9ca3af;
+  }
+  .dd-filter-btn.active { border-color:#FF7B0F; color:#FF7B0F; font-weight:600; }
+  .dd-panel {
+    display:none; position:absolute; top:calc(100% + 2px); left:0; z-index:999;
+    background:#fff; border:1px solid #d1d5db; border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,.12); min-width:150px; max-height:220px;
+    overflow-y:auto; padding:4px 0;
+  }
+  .dd-panel.open { display:block; }
+  .dd-panel label {
+    display:flex; align-items:center; gap:6px; padding:4px 10px;
+    font-size:.78rem; cursor:pointer; white-space:nowrap;
+  }
+  .dd-panel label:hover { background:#fff3e8; }
+  .dd-panel .dd-search {
+    width:calc(100% - 12px); margin:4px 6px; padding:3px 6px;
+    font-size:.75rem; border:1px solid #e5e7eb; border-radius:4px; outline:none;
+  }
+  .dd-panel .dd-search:focus { border-color:#FF7B0F; }
+  .dd-all-row { border-bottom:1px solid #f0f0f0; margin-bottom:2px; }
 </style>
 {% endblock %}
 
@@ -59,11 +90,33 @@
           <th>부서/팀</th><th>파트</th><th>입사일</th><th style="width:130px"></th>
         </tr>
         <tr id="filterRow">
-          {% for _ in range(8) %}
+          <!-- 사번: 텍스트 -->
           <th style="padding:3px 5px">
-            <input class="col-filter-input" placeholder="필터" oninput="filterEmpTable()">
+            <input class="col-filter-input" id="f-sabun" placeholder="검색" oninput="applyFilters()">
+          </th>
+          <!-- 이름: 텍스트 -->
+          <th style="padding:3px 5px">
+            <input class="col-filter-input" id="f-name" placeholder="검색" oninput="applyFilters()">
+          </th>
+          <!-- 직책, 소속, 본부, 부서팀, 파트: 드롭다운 -->
+          {% for col_id in ['f-jikchek','f-sokcheol','f-bonbu','f-buseo','f-part'] %}
+          <th style="padding:3px 5px">
+            <div class="dd-filter-wrap">
+              <button class="dd-filter-btn" id="{{ col_id }}-btn" onclick="toggleDD('{{ col_id }}')">전체</button>
+              <div class="dd-panel" id="{{ col_id }}-panel">
+                <input class="dd-search" placeholder="검색..." oninput="searchDD('{{ col_id }}', this.value)">
+                <label class="dd-all-row">
+                  <input type="checkbox" id="{{ col_id }}-all" checked onchange="toggleAll('{{ col_id }}', this.checked)">
+                  <span>전체 선택</span>
+                </label>
+              </div>
+            </div>
           </th>
           {% endfor %}
+          <!-- 입사일: 텍스트 -->
+          <th style="padding:3px 5px">
+            <input class="col-filter-input" id="f-date" placeholder="YYYY-MM" oninput="applyFilters()">
+          </th>
           <th></th>
         </tr>
       </thead>
@@ -140,25 +193,131 @@
 <script>
 const TOTAL = {{ employees|length }};
 
-function filterEmpTable() {
-  const filters = Array.from(document.querySelectorAll('#filterRow input'))
-    .map(i => i.value.trim().toLowerCase());
+// 드롭다운 컬럼 정보: [필터ID, 테이블 셀 인덱스]
+const DD_COLS = [
+  ['f-jikchek', 2],
+  ['f-sokcheol', 3],
+  ['f-bonbu', 4],
+  ['f-buseo', 5],
+  ['f-part', 6],
+];
+
+// 초기화: 테이블에서 고유값 수집 후 드롭다운 빌드
+function buildDropdowns() {
+  DD_COLS.forEach(([colId, cellIdx]) => {
+    const vals = new Set();
+    document.querySelectorAll('#empTbody tr').forEach(tr => {
+      const v = tr.cells[cellIdx]?.textContent.trim();
+      if (v) vals.add(v);
+    });
+    const sorted = [...vals].sort((a, b) => a === '-' ? 1 : b === '-' ? -1 : a.localeCompare(b, 'ko'));
+    const panel = document.getElementById(colId + '-panel');
+    sorted.forEach(val => {
+      const lbl = document.createElement('label');
+      lbl.dataset.val = val.toLowerCase();
+      lbl.innerHTML = `<input type="checkbox" value="${val}" checked onchange="onDDChange('${colId}')"> ${val}`;
+      panel.appendChild(lbl);
+    });
+  });
+}
+
+function toggleDD(colId) {
+  const panel = document.getElementById(colId + '-panel');
+  document.querySelectorAll('.dd-panel.open').forEach(p => { if (p !== panel) p.classList.remove('open'); });
+  panel.classList.toggle('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dd-filter-wrap')) {
+    document.querySelectorAll('.dd-panel.open').forEach(p => p.classList.remove('open'));
+  }
+});
+
+function toggleAll(colId, checked) {
+  const panel = document.getElementById(colId + '-panel');
+  panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all)').forEach(cb => cb.checked = checked);
+  updateDDBtnLabel(colId);
+  applyFilters();
+}
+
+function onDDChange(colId) {
+  const panel = document.getElementById(colId + '-panel');
+  const all = panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all)');
+  const checked = panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all):checked');
+  document.getElementById(colId + '-all').checked = all.length === checked.length;
+  updateDDBtnLabel(colId);
+  applyFilters();
+}
+
+function updateDDBtnLabel(colId) {
+  const panel = document.getElementById(colId + '-panel');
+  const all = panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all)');
+  const checked = [...panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all):checked')];
+  const btn = document.getElementById(colId + '-btn');
+  if (checked.length === 0) {
+    btn.textContent = '(없음)'; btn.classList.add('active');
+  } else if (checked.length === all.length) {
+    btn.textContent = '전체'; btn.classList.remove('active');
+  } else {
+    btn.textContent = checked.map(c => c.value).join(', ');
+    btn.classList.add('active');
+  }
+}
+
+function searchDD(colId, q) {
+  const panel = document.getElementById(colId + '-panel');
+  panel.querySelectorAll('label:not(.dd-all-row)').forEach(lbl => {
+    lbl.style.display = !q || lbl.dataset.val.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+function getSelectedVals(colId) {
+  const panel = document.getElementById(colId + '-panel');
+  return new Set([...panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all):checked')].map(c => c.value));
+}
+
+function applyFilters() {
+  const fSabun = document.getElementById('f-sabun').value.trim().toLowerCase();
+  const fName  = document.getElementById('f-name').value.trim().toLowerCase();
+  const fDate  = document.getElementById('f-date').value.trim().toLowerCase();
+  const ddSets = DD_COLS.map(([colId]) => getSelectedVals(colId));
+
   const rows = document.querySelectorAll('#empTbody tr');
   let visible = 0;
   rows.forEach(tr => {
-    const cells = Array.from(tr.cells);
-    const match = filters.every((f, i) => !f || (cells[i]?.textContent.toLowerCase().includes(f)));
+    const cells = tr.cells;
+    if (!cells.length) return;
+    const match =
+      (!fSabun || cells[0].textContent.toLowerCase().includes(fSabun)) &&
+      (!fName  || cells[1].textContent.toLowerCase().includes(fName)) &&
+      ddSets.every((set, i) => set.has(cells[DD_COLS[i][1]].textContent.trim())) &&
+      (!fDate  || cells[7].textContent.toLowerCase().includes(fDate));
     tr.style.display = match ? '' : 'none';
     if (match) visible++;
   });
+
+  const hasFilter = fSabun || fName || fDate || DD_COLS.some(([colId]) => {
+    const panel = document.getElementById(colId + '-panel');
+    const all = panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all)');
+    const checked = panel.querySelectorAll('input[type=checkbox]:not(#' + colId + '-all):checked');
+    return all.length !== checked.length;
+  });
   document.getElementById('empCount').textContent =
-    filters.some(f => f) ? `${visible} / ${TOTAL}명 표시 중` : `총 ${TOTAL}명`;
+    hasFilter ? `${visible} / ${TOTAL}명 표시 중` : `총 ${TOTAL}명`;
 }
 
 function clearFilters() {
-  document.querySelectorAll('#filterRow input').forEach(i => i.value = '');
-  filterEmpTable();
+  document.getElementById('f-sabun').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-date').value = '';
+  DD_COLS.forEach(([colId]) => {
+    document.getElementById(colId + '-all').checked = true;
+    toggleAll(colId, true);
+  });
+  applyFilters();
 }
+
+buildDropdowns();
 
 function showResign(sabun, name) {
   document.getElementById("resignName").textContent = name + " 님을 퇴사 처리합니다.";
@@ -173,7 +332,6 @@ const sokcheolDist = {{ 소속_dist | tojson }};
 const jikchekDist  = {{ 직책_dist | tojson }};
 const tenureDist   = {{ tenure_dist | tojson }};
 
-/* ── 차트 상세 모달 공통 ── */
 const chartModal = new bootstrap.Modal(document.getElementById('chartDetailModal'));
 
 function showChartDetail(title, url) {
@@ -208,7 +366,7 @@ function showChartDetail(title, url) {
   });
 }
 
-const sokcheolChart = new Chart(document.getElementById("sokcheolChart"), {
+new Chart(document.getElementById("sokcheolChart"), {
   type: "doughnut",
   data: {
     labels: sokcheolDist.map(d => d["소속"]),
