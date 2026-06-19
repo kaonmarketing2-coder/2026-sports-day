@@ -2,33 +2,33 @@
 {% block title %}엑셀 임포트 — 웰메이트{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
-<div class="col-lg-6">
+<div class="col-lg-7">
 <div class="page-title">📥 엑셀 임포트</div>
 
+<div id="resultArea">
 {% if result %}
 <div class="alert alert-success">✅ {{ result }}</div>
 {% endif %}
 {% if wellmate_result %}
 <div class="alert alert-success">✅ {{ wellmate_result }}</div>
 {% endif %}
+</div>
 
 <div class="card p-4">
   <p class="text-muted small mb-3">
     기존 엑셀 파일(<strong>ROASTER + 웰메이트 시트</strong>)을 업로드하면 직원 정보와 매칭 현황을 한 번에 가져옵니다.
   </p>
-  <form method="POST" enctype="multipart/form-data">
-    <div class="mb-3">
-      <label class="form-label fw-semibold">엑셀 파일 선택 (.xlsx)</label>
-      <input type="file" name="file" class="form-control" accept=".xlsx" required>
-    </div>
-    <div class="form-check mb-3">
-      <input class="form-check-input" type="checkbox" name="import_wellmate" id="importWm" checked>
-      <label class="form-check-label" for="importWm">
-        웰메이트 매칭 현황도 함께 가져오기 <span class="text-muted small">(웰메이트 시트)</span>
-      </label>
-    </div>
-    <button type="submit" class="btn btn-primary">임포트 시작</button>
-  </form>
+  <div class="mb-3">
+    <label class="form-label fw-semibold">엑셀 파일 선택 (.xlsx)</label>
+    <input type="file" id="fileInput" class="form-control" accept=".xlsx">
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="importWm" checked>
+    <label class="form-check-label" for="importWm">
+      웰메이트 매칭 현황도 함께 가져오기 <span class="text-muted small">(웰메이트 시트)</span>
+    </label>
+  </div>
+  <button class="btn btn-primary" onclick="previewImport()">미리보기</button>
 </div>
 
 <div class="card p-3 mt-3" style="font-size:.82rem">
@@ -41,4 +41,140 @@
 </div>
 </div>
 </div>
+
+<!-- 미리보기 모달 -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--kaon-dark);color:#fff">
+        <h5 class="modal-title">임포트 미리보기</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="previewBody" style="font-size:.88rem">
+        <div class="text-center py-4 text-muted">파일을 분석 중입니다...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary" id="confirmImportBtn" onclick="confirmImport()">확인 후 임포트</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _fileData = null;
+
+function previewImport() {
+  const fileInput = document.getElementById('fileInput');
+  if (!fileInput.files[0]) {
+    alert('파일을 먼저 선택해 주세요.');
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+  document.getElementById('previewBody').innerHTML = '<div class="text-center py-4 text-muted">파일을 분석 중입니다...</div>';
+  modal.show();
+
+  fetch('/employees/import-preview', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      _fileData = data;
+      renderPreview(data);
+    })
+    .catch(() => {
+      document.getElementById('previewBody').innerHTML = '<div class="alert alert-danger">분석 중 오류가 발생했습니다.</div>';
+    });
+}
+
+function renderPreview(data) {
+  const { new_employees, updated, db_only } = data;
+  let html = '';
+
+  // 신규
+  html += `<div class="mb-3">
+    <div class="fw-semibold mb-1" style="color:#198754">🟢 신규 추가 <span class="badge bg-success">${new_employees.length}명</span></div>`;
+  if (new_employees.length) {
+    html += '<div style="max-height:120px;overflow-y:auto"><table class="table table-sm table-bordered mb-0"><thead><tr><th>사번</th><th>이름</th><th>소속</th><th>직책</th></tr></thead><tbody>';
+    new_employees.forEach(e => {
+      html += `<tr><td>${e.사번}</td><td>${e.이름}</td><td>${e.소속||'-'}</td><td>${e.직책||'-'}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<span class="text-muted small">없음</span>';
+  }
+  html += '</div>';
+
+  // 업데이트
+  html += `<div class="mb-3">
+    <div class="fw-semibold mb-1" style="color:#cc6200">🟡 정보 업데이트 <span class="badge" style="background:#FF7B0F">${updated.length}명</span></div>`;
+  if (updated.length) {
+    html += '<div style="max-height:120px;overflow-y:auto"><table class="table table-sm table-bordered mb-0"><thead><tr><th>사번</th><th>이름</th><th>소속</th><th>직책</th></tr></thead><tbody>';
+    updated.forEach(e => {
+      html += `<tr><td>${e.사번}</td><td>${e.이름}</td><td>${e.소속||'-'}</td><td>${e.직책||'-'}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<span class="text-muted small">없음</span>';
+  }
+  html += '</div>';
+
+  // DB에만 있는 직원
+  html += `<div class="mb-1">
+    <div class="fw-semibold mb-1" style="color:#dc3545">🔴 임포트 파일에 없는 기존 직원 <span class="badge bg-danger">${db_only.length}명</span></div>
+    <div class="text-muted small mb-2">아래 직원은 이번 임포트 파일에 없습니다. 퇴직 처리할 직원을 체크하세요.</div>`;
+  if (db_only.length) {
+    html += `<div style="max-height:180px;overflow-y:auto"><table class="table table-sm table-bordered mb-0">
+      <thead><tr><th><input type="checkbox" id="checkAll" onchange="toggleAll(this)"> 전체</th><th>사번</th><th>이름</th><th>소속</th><th>직책</th></tr></thead><tbody>`;
+    db_only.forEach(e => {
+      html += `<tr>
+        <td><input type="checkbox" class="resign-check" value="${e.사번}"></td>
+        <td>${e.사번}</td><td>${e.이름}</td><td>${e.소속||'-'}</td><td>${e.직책||'-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<span class="text-muted small">없음 (모든 기존 직원이 파일에 포함되어 있습니다)</span>';
+  }
+  html += '</div>';
+
+  document.getElementById('previewBody').innerHTML = html;
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.resign-check').forEach(el => el.checked = cb.checked);
+}
+
+function confirmImport() {
+  const fileInput = document.getElementById('fileInput');
+  const importWm = document.getElementById('importWm').checked;
+  const resignSabuns = [...document.querySelectorAll('.resign-check:checked')].map(el => el.value);
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  if (importWm) formData.append('import_wellmate', '1');
+  resignSabuns.forEach(s => formData.append('resign_sabun', s));
+
+  document.getElementById('confirmImportBtn').disabled = true;
+  document.getElementById('confirmImportBtn').textContent = '처리 중...';
+
+  fetch('/employees/import', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide();
+      let msg = `<div class="alert alert-success">✅ ${data.result}</div>`;
+      if (data.wellmate_result) msg += `<div class="alert alert-success">✅ ${data.wellmate_result}</div>`;
+      if (data.resigned > 0) msg += `<div class="alert alert-warning">⚠️ ${data.resigned}명 퇴직 처리 완료</div>`;
+      document.getElementById('resultArea').innerHTML = msg;
+    })
+    .catch(() => {
+      alert('임포트 중 오류가 발생했습니다.');
+    })
+    .finally(() => {
+      const btn = document.getElementById('confirmImportBtn');
+      if (btn) { btn.disabled = false; btn.textContent = '확인 후 임포트'; }
+    });
+}
+</script>
 {% endblock %}

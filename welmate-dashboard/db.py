@@ -71,7 +71,34 @@ def init_db():
     conn.close()
 
 
-def import_employees_from_df(df):
+def preview_import_df(df):
+    """Return diff: new_employees, updated, db_only (all as list of dicts)."""
+    conn = get_conn()
+    file_sabuns = set()
+    new_employees, updated = [], []
+    for _, row in df.iterrows():
+        sabun = str(row.get("사번", "")).strip()
+        name = str(row.get("이름", "")).strip()
+        if not sabun or not name or sabun == "nan":
+            continue
+        file_sabuns.add(sabun)
+        existing = conn.execute("SELECT 사번,이름,소속,직책 FROM employees WHERE 사번=?", (sabun,)).fetchone()
+        entry = {"사번": sabun, "이름": name, "소속": _val(row, "소속"), "직책": _val(row, "직책")}
+        if existing:
+            updated.append(entry)
+        else:
+            new_employees.append(entry)
+    db_only_rows = conn.execute(
+        "SELECT 사번,이름,소속,직책 FROM employees WHERE 상태='재직' AND 사번 NOT IN ({})".format(
+            ",".join("?" * len(file_sabuns)) if file_sabuns else "'__none__'"
+        ), list(file_sabuns)
+    ).fetchall()
+    db_only = [{"사번": r["사번"], "이름": r["이름"], "소속": r["소속"] or "-", "직책": r["직책"] or "-"} for r in db_only_rows]
+    conn.close()
+    return {"new_employees": new_employees, "updated": updated, "db_only": db_only}
+
+
+def import_employees_from_df(df, resign_sabuns=None):
     conn = get_conn()
     c = conn.cursor()
     count = 0
@@ -94,9 +121,16 @@ def import_employees_from_df(df):
             _val(row, "입사일"),
         ))
         count += 1
+    resigned = 0
+    if resign_sabuns:
+        from datetime import date
+        today = date.today().isoformat()
+        for sabun in resign_sabuns:
+            c.execute("UPDATE employees SET 상태='퇴사', 퇴사일=? WHERE 사번=?", (today, sabun))
+            resigned += c.rowcount
     conn.commit()
     conn.close()
-    return count
+    return count, resigned
 
 
 def _val(row, col):

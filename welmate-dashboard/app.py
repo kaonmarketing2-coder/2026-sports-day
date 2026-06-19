@@ -5,7 +5,7 @@ import io, os
 from db import (
     init_db, get_all_wellmate, add_wellmate, update_wellmate, delete_wellmate,
     get_wellmate, get_employee, search_employees, get_all_employees,
-    add_employee, update_employee, delete_employee, import_employees_from_df,
+    add_employee, update_employee, delete_employee, import_employees_from_df, preview_import_df,
     resign_employee, get_resigned_employees, bulk_update_employees, get_org_tree,
     get_monthly_hire_counts, get_monthly_resign_counts, get_소속_dist,
     get_employees_by_hire_month, get_employees_by_resign_month,
@@ -407,58 +407,72 @@ def employee_bulk_edit():
     return render_template("bulk_edit.html", result=result)
 
 
+@app.route("/employees/import-preview", methods=["POST"])
+@login_required
+def employee_import_preview():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "파일 없음"}), 400
+    file_bytes = f.read()
+    df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="ROASTER", header=1, engine="openpyxl")
+    df = df.rename(columns={"본부/실": "본부", "부서/팀": "부서팀"})
+    return jsonify(preview_import_df(df))
+
+
 @app.route("/employees/import", methods=["GET", "POST"])
 @login_required
 def employee_import():
-    result = None
-    wellmate_result = None
     if request.method == "POST":
         f = request.files.get("file")
-        if f:
-            file_bytes = f.read()
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="ROASTER", header=1, engine="openpyxl")
-            df = df.rename(columns={"본부/실": "본부", "부서/팀": "부서팀"})
-            count = import_employees_from_df(df)
-            result = f"{count}명 임포트 완료"
+        if not f:
+            return jsonify({"error": "파일 없음"}), 400
+        file_bytes = f.read()
+        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="ROASTER", header=1, engine="openpyxl")
+        df = df.rename(columns={"본부/실": "본부", "부서/팀": "부서팀"})
+        resign_sabuns = request.form.getlist("resign_sabun")
+        count, resigned = import_employees_from_df(df, resign_sabuns=resign_sabuns)
+        result = f"{count}명 임포트 완료"
+        wellmate_result = None
 
-            if request.form.get("import_wellmate"):
-                wm_df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=4, header=3, engine="openpyxl")
-                wm_count = 0
-                for _, row in wm_df.iterrows():
-                    mentor_name = str(row.get("이름", "")).strip()
-                    if not mentor_name or mentor_name in ("nan", "None", "이름"):
-                        continue
-                    cols = list(wm_df.columns)
-                    sabun_col = "사번.1" if "사번.1" in cols else (cols[8] if len(cols) > 8 else None)
-                    mentee_sabun = str(row.get(sabun_col, "")).strip() if sabun_col else ""
-                    if mentee_sabun in ("nan", "None", ""):
-                        mentee_sabun = None
+        if request.form.get("import_wellmate"):
+            wm_df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=4, header=3, engine="openpyxl")
+            wm_count = 0
+            for _, row in wm_df.iterrows():
+                mentor_name = str(row.get("이름", "")).strip()
+                if not mentor_name or mentor_name in ("nan", "None", "이름"):
+                    continue
+                cols = list(wm_df.columns)
+                sabun_col = "사번.1" if "사번.1" in cols else (cols[8] if len(cols) > 8 else None)
+                mentee_sabun = str(row.get(sabun_col, "")).strip() if sabun_col else ""
+                if mentee_sabun in ("nan", "None", ""):
+                    mentee_sabun = None
 
-                    def fmt(v):
-                        if v is None: return None
-                        try:
-                            if pd.isna(v): return None
-                        except Exception:
-                            pass
-                        if hasattr(v, "strftime"): return v.strftime("%Y-%m-%d")
-                        s = str(v).strip()
-                        return None if s in ("nan", "None", "") else s
+                def fmt(v):
+                    if v is None: return None
+                    try:
+                        if pd.isna(v): return None
+                    except Exception:
+                        pass
+                    if hasattr(v, "strftime"): return v.strftime("%Y-%m-%d")
+                    s = str(v).strip()
+                    return None if s in ("nan", "None", "") else s
 
-                    add_wellmate({
-                        "멘토_이름": mentor_name,
-                        "멘티_사번": mentee_sabun,
-                        "마감월": fmt(row.get("마감월")),
-                        "엔드서베이": fmt(row.get("엔드서베이")),
-                        "재직확인": fmt(row.get("재직확인")),
-                        "퇴사일": fmt(row.get("퇴사일")),
-                        "메모": None,
-                    })
-                    wm_count += 1
-                wellmate_result = f"웰메이트 매칭 {wm_count}건 임포트 완료"
+                add_wellmate({
+                    "멘토_이름": mentor_name,
+                    "멘티_사번": mentee_sabun,
+                    "마감월": fmt(row.get("마감월")),
+                    "엔드서베이": fmt(row.get("엔드서베이")),
+                    "재직확인": fmt(row.get("재직확인")),
+                    "퇴사일": fmt(row.get("퇴사일")),
+                    "메모": None,
+                })
+                wm_count += 1
+            wellmate_result = f"웰메이트 매칭 {wm_count}건 임포트 완료"
 
-    if result or wellmate_result:
         _auto_export()
-    return render_template("import.html", result=result, wellmate_result=wellmate_result)
+        return jsonify({"result": result, "wellmate_result": wellmate_result, "resigned": resigned})
+
+    return render_template("import.html")
 
 
 @app.route("/employees/export")
