@@ -1249,6 +1249,8 @@ function QuestionsTab({ storedPwd }: { storedPwd: string }) {
   const [questions, setQuestions] = useState<Question[]>([])
   const [editTarget, setEditTarget] = useState<{ q: Question | null; isNew: boolean } | null>(null)
   const [actionError, setActionError] = useState('')
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const authHeaders = {
     'Content-Type': 'application/json',
@@ -1337,16 +1339,66 @@ function QuestionsTab({ storedPwd }: { storedPwd: string }) {
     }
   }
 
+  const importFromJson = async (file: File) => {
+    setActionError('')
+    setImporting(true)
+    try {
+      const text = await file.text()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        throw new Error('올바른 JSON 파일이 아닙니다.')
+      }
+      const res = await fetch('/api/questions/import', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(Array.isArray(parsed) ? { questions: parsed } : parsed),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? '가져오기 실패')
+      }
+      const json = await res.json()
+      const imported: Question[] = json.data ?? []
+      setQuestions(prev => [...prev, ...imported].sort((a, b) => a.sort_order - b.sort_order))
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : '가져오기 실패')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm font-semibold text-gray-600">총 {questions.length}개 문항</span>
-        <button
-          onClick={() => setEditTarget({ q: null, isNew: true })}
-          className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
-        >
-          + 문항 추가
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) importFromJson(file)
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="bg-white hover:bg-gray-50 text-blue-700 border-2 border-blue-200 text-sm font-bold px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+          >
+            {importing ? '가져오는 중...' : '📄 JSON 파일 가져오기'}
+          </button>
+          <button
+            onClick={() => setEditTarget({ q: null, isNew: true })}
+            className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+          >
+            + 문항 추가
+          </button>
+        </div>
       </div>
 
       {actionError && (
